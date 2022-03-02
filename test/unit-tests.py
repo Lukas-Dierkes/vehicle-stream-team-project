@@ -1,1 +1,2 @@
-from vehicle_stream.test import hello_world
+def test_example():
+    assert 1 + 1 == 2
