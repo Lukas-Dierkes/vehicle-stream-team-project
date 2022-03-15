@@ -1,6 +1,9 @@
 import os
 
+import git
 import pandas as pd
+
+repo = git.Repo(".", search_parent_directories=True).git.rev_parse("--show-toplevel")
 
 
 def create_overall_dataframes(path):
@@ -17,6 +20,9 @@ def create_overall_dataframes(path):
         # Read current excel file
         df_dict = pd.read_excel(current_file, sheet_name=None)
 
+        for sheet_name, df in df_dict.items():
+            df["sheet_name"] = sheet_name
+
         # Extract dataframes from current excel file
         df_kpi_temp = df_dict["KPI"]
         df_dict.pop("KPI")
@@ -24,6 +30,7 @@ def create_overall_dataframes(path):
         df_dict.pop("MTD")
         # union all rides from all days in current excel file
         df_rides_temp = pd.concat(df_dict, ignore_index=True)
+        df_rides_temp["file_name"] = str(filename)
 
         # Create big dataframes over all excel files (all months combined)
         df_kpi = pd.concat([df_kpi, df_kpi_temp], axis=0, ignore_index=True)
@@ -33,8 +40,8 @@ def create_overall_dataframes(path):
     return {"df_kpi": df_kpi, "df_mtd": df_mtd, "df_rides": df_rides}
 
 
-result = create_overall_dataframes("../data/Normal_Rides")
+result = create_overall_dataframes(f"{repo}/data/normal_rides")
 
-result["df_kpi"].to_csv("../data/kpi_combined.csv")
-result["df_mtd"].to_csv("../data/mtd_combined.csv")
-result["df_rides"].to_csv("../data/rides_combined.csv")
+result["df_kpi"].to_csv(f"{repo}/data/kpi_combined.csv")
+result["df_mtd"].to_csv(f"{repo}/data/mtd_combined.csv")
+result["df_rides"].to_csv(f"{repo}/data/rides_combined.csv")
