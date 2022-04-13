@@ -11,3 +11,14 @@ data/normal_rides/Rides_2022-01.xlsx
 data/normal_rides/Rides_2022-02.xlsx
 vehicle_stream_pipeline/test.xlsx
 vehicle_stream_pipeline/~$test.xlsx
+.DS_Store
+data/.DS_Store
+data/normal_rides/Logistic-Rides-01-2022.xlsx
+data/normal_rides/Logistic-Rides-02-2022.xlsx
+data/normal_rides/Logistic-Rides_2021-12.xlsx
+data/normal_rides/MoDstops+Preismodell.xlsx
+data/.DS_Store
+data/.DS_Store
+.DS_Store
+*.xlsx
+data/.DS_Store
