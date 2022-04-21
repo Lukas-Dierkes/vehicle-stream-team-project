@@ -3,29 +3,35 @@ from numpy import NaN
 
 
 class Detect:
-    def check_state_completed(row, errorlist):
-        # check price offer and pickup at
-        error_expression = (row["price_offer"] != NaN) and (row["pickup_at"] == NaN)
-        if ~error_expression:
-            if errorlist["Errorcode"] == "0":
-                errorlist["Errorcode"] = "1"
-            else:
-                errorlist["Errorcode"] = errorlist["Errorcode"] + "; " + "1"
-            errorlist["Errormessage"] = (
-                errorlist["Errormessage"] + "Price_offer, but no pickup_at; "
-            )
 
-        # check pickup and dropoff address
-        error_expression = row["pickup_address"] == row["dropoff_address"]
+    # check current expression and overwrite errorlist with given error_message - only used within class
+    def check_expression(error_code, error_message, error_expression, errorlist):
         if error_expression:
             if errorlist["Errorcode"] == "0":
-                errorlist["Errorcode"] = "2"
+                errorlist["Errorcode"] = error_code
             else:
-                errorlist["Errorcode"] = errorlist["Errorcode"] + "; " + "2"
-            errorlist["Errormessage"] = (
-                errorlist["Errormessage"]
-                + "Pickup address equals dropoff address in completed ride; "
-            )
+                errorlist["Errorcode"] = errorlist["Errorcode"] + "; " + error_code
+            errorlist["Errormessage"] = errorlist["Errormessage"] + error_message
+        return errorlist
+
+    def check_state_completed(row, errorlist):
+        # check price offer and pickup at
+        error_code = "1"
+        error_message = "Price_offer, but no pickup_at; "
+        error_expression = (row["price_offer"] != NaN) and (row["pickup_at"] == NaN)
+
+        errorlist = Detect.check_expression(
+            error_code, error_message, error_expression, errorlist
+        )
+
+        # check pickup and dropoff address
+        error_code = "2"
+        error_message = "Pickup address equals dropoff address in completed ride; "
+        error_expression = row["pickup_address"] == row["dropoff_address"]
+
+        errorlist = Detect.check_expression(
+            error_code, error_message, error_expression, errorlist
+        )
 
         # check pickup and dropoff address
 
@@ -49,6 +55,8 @@ class Detect:
     def check_timestamp_order(row, errorlist):
 
         # check presence of all timestamps
+        error_code = "11"
+        error_message = "Not all timestamps set; "
         error_expression = (
             row["created_at"] != NaN
             and row["dispatched_at"] != NaN
@@ -64,16 +72,14 @@ class Detect:
             and row["dropoff_at"] != NaN
             and row["updated_at"] != NaN
         )
-        if error_expression:
-            if errorlist["Errorcode"] == "0":
-                errorlist["Errorcode"] = "11"
-            else:
-                errorlist["Errorcode"] = errorlist["Errorcode"] + "; " + "11"
-            errorlist["Errormessage"] = (
-                errorlist["Errormessage"] + "Not all timestamps set; "
-            )
+
+        errorlist = Detect.check_expression(
+            error_code, error_message, error_expression, errorlist
+        )
 
         # check order of all timestamps
+        error_code = "12"
+        error_message = "Not all timestamps in order; "
         error_expression = (
             row["created_at"] != NaN
             and row["dispatched_at"] != NaN
@@ -89,14 +95,10 @@ class Detect:
             and row["dropoff_at"] != NaN
             and row["updated_at"] != NaN
         )
-        if error_expression:
-            if errorlist["Errorcode"] == "0":
-                errorlist["Errorcode"] = "12"
-            else:
-                errorlist["Errorcode"] = errorlist["Errorcode"] + "; " + "12"
-            errorlist["Errormessage"] = (
-                errorlist["Errormessage"] + "Not all timestamps are in right order; "
-            )
+
+        errorlist = Detect.check_expression(
+            error_code, error_message, error_expression, errorlist
+        )
 
         # return final errorlist
         return errorlist
