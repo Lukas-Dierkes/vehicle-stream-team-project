@@ -1,3 +1,4 @@
+from textwrap import dedent
 import pandas as pd
 from numpy import NaN
 
@@ -33,14 +34,28 @@ class Detect:
             error_code, error_message, error_expression, errorlist
         )
 
-        # check pickup and dropoff address
+        # check that vehicle_arrived_at is filled 
+        error_code = "3"
+        error_message = "Drive is completed, but there is not vehicle_arrived_at time filled; "
+        error_expression = row["vehicle_arrived_at"] == NaN 
+
+        errorlist = Detect.check_expression(
+            error_code, error_message, error_expression, errorlist
+        )
 
         # return final errorlist
         return errorlist
 
     def check_state_offer(row, errorlist):
 
-        # check price offe and pickup at
+        # check if arrived_at is filled 
+        error_code = "11"
+        error_message = "Although the ride wasn't completed, there is a time in arived_at "
+        error_expression = row["vehicle_arrived_at"] != NaN
+
+        errorlist = Detect.check_expression(
+            error_code, error_message, error_expression, errorlist
+        )
 
         # return final errorlist
         return errorlist
@@ -55,7 +70,7 @@ class Detect:
     def check_timestamp_order(row, errorlist):
 
         # check presence of all timestamps
-        error_code = "11"
+        error_code = "101"
         error_message = "Not all timestamps set; "
         error_expression = (
             row["created_at"] != NaN
@@ -78,24 +93,10 @@ class Detect:
         )
 
         # check order of all timestamps
-        error_code = "12"
-        error_message = "Not all timestamps in order; "
-        error_expression = (
-            row["created_at"] != NaN
-            and row["dispatched_at"] != NaN
-            and row["pickup_arrival_time"] != NaN
-            and row["arriving_push"] != NaN
-            and row["vehicle_arrived_at"] != NaN
-            and row["earliest_pickup_expectation"] != NaN
-            and row["pickup_first_eta"] != NaN
-            and row["pickup_eta"] != NaN
-            and row["pickup_at"] != NaN
-            and row["dropoff_first_eta"] != NaN
-            and row["dropoff_eta"] != NaN
-            and row["dropoff_at"] != NaN
-            and row["updated_at"] != NaN
-        )
-
+        error_code = "102"
+        error_message = "Created is after any time; "
+        error_expression = row["created_at"] != NaN
+        
         errorlist = Detect.check_expression(
             error_code, error_message, error_expression, errorlist
         )
@@ -104,6 +105,17 @@ class Detect:
         return errorlist
 
     def check_timestamp_calculations(row, errorlist):
+
+
+
+        # check if dispatched_at calculation
+        #error_code = "201"
+        #error_message = "Dispatched_at is not 8 Minutes before scheduled_to; "
+        #error_expression = (row["scheduled_to"] != NaN) and (row["dispatched_at"] == row["scheduled_to"] -) 
+        
+        #errorlist = Detect.check_expression(
+        #    error_code, error_message, error_expression, errorlist
+        #)
 
         # return final errorlist
         return errorlist

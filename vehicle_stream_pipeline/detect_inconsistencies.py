@@ -4,8 +4,12 @@ from numpy import NaN
 
 # read rides_combined.csv - change to your loaction
 df = pd.read_csv(
-    "C:/Users/jostm7/Desktop/Uni Mannheim/2. Semester/Teamprojekt/vehicle-stream-team-project/data/rides_combined.csv"
+    "/Users/ericchittka/rides_combined.csv"
 )
+
+# check the types of the dataframe columns 
+df.dtypes
+
 # df = pd.read_csv('../data/rides_combined.csv')
 
 # add empty columns {"Errorcode": "0", "Errormessage": ""}
@@ -42,5 +46,5 @@ for index, row in df.iterrows():
 # filter also all unused columns here
 filtered_df = df[df["Errorcode"] != "0"]
 
-print(df)
+#print(df)
 print(filtered_df)
