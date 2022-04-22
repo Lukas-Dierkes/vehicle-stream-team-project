@@ -1,7 +1,7 @@
-from textwrap import dedent
 import pandas as pd
+import numpy as np
+from datetime import datetime as dt
 from numpy import NaN
-
 
 class Detect:
 
@@ -50,7 +50,7 @@ class Detect:
 
         # check if arrived_at is filled 
         error_code = "11"
-        error_message = "Although the ride wasn't completed, there is a time in arived_at "
+        error_message = "Although the ride wasn't completed, there is a time in arrived_at "
         error_expression = row["vehicle_arrived_at"] != NaN
 
         errorlist = Detect.check_expression(
@@ -106,16 +106,14 @@ class Detect:
 
     def check_timestamp_calculations(row, errorlist):
 
-
-
-        # check if dispatched_at calculation
-        #error_code = "201"
-        #error_message = "Dispatched_at is not 8 Minutes before scheduled_to; "
-        #error_expression = (row["scheduled_to"] != NaN) and (row["dispatched_at"] == row["scheduled_to"] -) 
+        # check the dispatched_at calculation
+        error_code = "201"
+        error_message = "Dispatched_at is not 8 Minutes before scheduled_to; "
+        error_expression = (row["scheduled_to"] != NaN) and (row["dispatched_at"] + pd.Timedelta(minutes = 8) != row["scheduled_to"]) 
         
-        #errorlist = Detect.check_expression(
-        #    error_code, error_message, error_expression, errorlist
-        #)
+        errorlist = Detect.check_expression(
+            error_code, error_message, error_expression, errorlist
+        )
 
         # return final errorlist
         return errorlist
