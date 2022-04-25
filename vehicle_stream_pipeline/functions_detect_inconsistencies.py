@@ -92,10 +92,10 @@ class Detect:
             error_code, error_message, error_expression, errorlist
         )
 
-        # check order of all timestamps
+        # check if times are all after the creation time 
         error_code = "102"
-        error_message = "Created is after any time; "
-        error_expression = row["created_at"] != NaN
+        error_message = "Created is after any other time; "
+        error_expression = row["created_at"] < row['scheduled_to'] or row['dispatched_at'] or row['arriving_push'] or row['vehicle_arrived_at'] or row['earliest_pickup_expectation'] or row['pickup_first_eta'] or row['pickup_eta'] or row['pickup_at'] or row['dropoff_first_eta'] or row['dropoff_eta'] or row['dropff_at'] or row['updated_at']
         
         errorlist = Detect.check_expression(
             error_code, error_message, error_expression, errorlist

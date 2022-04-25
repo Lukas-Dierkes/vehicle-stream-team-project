@@ -39,15 +39,14 @@ df['delay'] = pd.to_datetime(df['delay'], format='%H:%M:%S')
 df["Errorcode"] = "0"
 df["Errormessage"] = ""
 
-df.dtypes
 # check every row for inconsistencies and right errorlist into df
 for index, row in df.iterrows():
 
     # infinite loop protection - can be commented out later
-    expression = index > 5
-    if expression:
-        print(expression)
-        break
+    #expression = index > 5
+    #if expression:
+    #    print(expression)
+    #    break
 
     # create empty errorlist per row
     errorlist = pd.Series({"Errorcode": "0", "Errormessage": ""})
@@ -72,4 +71,5 @@ for index, row in df.iterrows():
 filtered_df = df[df["Errorcode"] != "0"]
 
 #print(df)
-print(filtered_df)
+filtered_df.to_excel(r'/Users/ericchittka/Downloads/Filtered_df.xlsx')
+
