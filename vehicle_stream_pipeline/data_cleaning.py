@@ -1,6 +1,8 @@
 import time
 from datetime import datetime as dt
+from re import M
 
+import git
 import numpy as np
 import pandas as pd
 
@@ -33,6 +35,10 @@ def check_format(df, col_type_dict):
         elif col_type == "time":
             df = df[
                 (df[col].str.match(r"[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}") == True)
+                | (
+                    df[col].str.match(r"[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}.[0-9]*")
+                    == True
+                )
                 | (df[col].str.contains("1899"))
                 | (df[col].str.contains("1900") | (df[col].isna()))
             ]
@@ -50,12 +56,15 @@ def check_format(df, col_type_dict):
 # Attribute: 'id'
 def clean_ride_id(df):
     id = pd.DataFrame(data=df.loc[:, "id"], columns=["id"])
-    id.id.fillna(df.created_from_offer.astype(float).astype("Int64"), inplace=True)
+    id.id.fillna(
+        df.created_from_offer.astype(float).astype("Int64"), inplace=True
+    )  # Why first to float and then to Int64
     return id
 
 
 # Attribute: 'distance'
 def clean_distance(df):
+    # remove observations where pickup_address == dropoff_address
     df = df[df["pickup_address"] != df["dropoff_address"]]
     return df
 
@@ -95,7 +104,11 @@ def clean_addresses(df, df_stops):
             row["dropoff_address"], df_stops
         )
     # export list of unmatched addresses
-    file = "../cleaning/unmatched_addresses_{}.xlsx".format(int(time.time()))
+    repo = git.Repo(".", search_parent_directories=True).git.rev_parse(
+        "--show-toplevel"
+    )
+    file = f"{repo}/data/cleaning/unmatched_addresses_{int(time.time())}.xlsx"
+    # file = "../cleaning/unmatched_addresses_{}.xlsx".format(int(time.time()))
     mask = (
         (addresses["pickup_id"] == "No match of address name")
         | (addresses["pickup_id"] == "No match of lat and long")
@@ -134,7 +147,11 @@ def clean_dispatched_at(df):
     dispatched_at = pd.to_datetime(df["dispatched_at"])
 
     # Fill missing values of dispatched_at
-    dispatched_at = np.where(dispatched_at.isna(), df["created_at"], dispatched_at)
+    dispatched_at = np.where(
+        (dispatched_at.isna()) & (df["state"] == "completed"),
+        df["created_at"],
+        dispatched_at,
+    )
 
     ##### Ich verstehe die 1. Bedingungen hier nicht:
     # 1. Bedingung: Wenn dispatched vor oder gleich created ist, dann soll scheduled_to-8Min genommen werden
@@ -143,9 +160,11 @@ def clean_dispatched_at(df):
     #       scheduled_to im vorherigen Cleaning auf created_at gesetzt wurde. Und eigentlich sind doch alle rides, die
     #       nicht vorbestellt wurden direkt gleichzeit zu created_at auch dispatched_at und fallen somit darein
 
+    # Lösung: Strikt kleiner als kleiner gleich
+
     # Check correct ordering
     dispatched_at = np.where(
-        (dispatched_at <= df["created_at"])
+        (dispatched_at < df["created_at"])
         | (dispatched_at <= df["scheduled_to"] - pd.Timedelta(minutes=9)),
         df["scheduled_to"] - pd.Timedelta(minutes=8),
         dispatched_at,
@@ -164,12 +183,7 @@ def clean_vehicle_arrived_at(df):
     times = [3600, 60, 1]
     pickup_arrival_time = df["pickup_arrival_time"].fillna("-9")
     pickup_arrival_time = pd.Series(
-        np.where(
-            pickup_arrival_time.str.contains("1899")
-            | pickup_arrival_time.str.contains("1900"),
-            "-9",
-            pickup_arrival_time,
-        )
+        np.where(pickup_arrival_time.str.contains("1899"), "-9", pickup_arrival_time)
     )
 
     pickup_arrival_time = pickup_arrival_time.str[0:8].apply(
@@ -184,7 +198,7 @@ def clean_vehicle_arrived_at(df):
     print(avg_pickup_arrival_time)
 
     vehicle_arrived_at = np.where(
-        vehicle_arrived_at.isna(),
+        (vehicle_arrived_at.isna()) & (df["state"] == "completed"),
         np.where(
             (
                 df["dispatched_at"] + pd.Timedelta(seconds=avg_pickup_arrival_time)
@@ -272,7 +286,7 @@ def clean_pickup_at(df):
     print(avg_boarding_time)
 
     pickup_at = np.where(
-        pickup_at.isna() == True,
+        (pickup_at.isna() == True) & (df["state"] == "completed"),
         np.where(
             df["pickup_eta"].isna(),
             df["vehicle_arrived_at"] + pd.Timedelta(avg_boarding_time),
@@ -333,7 +347,7 @@ def clean_dropoff_at(df):
     )
 
     dropoff_at = np.where(
-        dropoff_at.isna(),
+        (dropoff_at.isna()) & (df["state"] == "completed"),
         np.where(
             df["dropoff_eta"].isna(),
             dropoff_at + pd.to_timedelta(shortest_ridetime),
@@ -384,7 +398,6 @@ def clean_dropoff_first_eta(df):
 
 
 def clean_time_periods(df):
-    print(df[["vehicle_arrived_at", "arriving_push"]])
     df["arrival_deviation2"] = df.apply(
         lambda row: (
             (row["vehicle_arrived_at"] - row["arriving_push"]).round(freq="s")
@@ -501,7 +514,33 @@ def clean_time_periods(df):
 
 def data_cleaning(df, df_stops):
 
-    # df, df_inconsistencies = check_format(df, {"created_at": "timestamp"})
+    time_columns = {
+        "created_at": "timestamp",
+        "scheduled_to": "timestamp",
+        "dispatched_at": "timestamp",
+        "pickup_arrival_time": "time",
+        "arriving_push": "timestamp",
+        "vehicle_arrived_at": "timestamp",
+        "earliest_pickup_expectation": "timestamp",
+        "pickup_first_eta": "timestamp",
+        "pickup_eta": "timestamp",
+        "pickup_at": "timestamp",
+        "dropoff_first_eta": "timestamp",
+        "dropoff_eta": "timestamp",
+        "dropoff_at": "timestamp",
+        "waiting_time": "time",
+        "boarding_time": "time",
+        "ride_time": "time",
+        "trip_time": "time",
+        "shortest_ridetime": "time",
+        "delay": "time",
+    }
+
+    df, df_inconsistencies = check_format(df, time_columns)
+
+    df_inconsistencies.to_excel(
+        f"{repo}/data/cleaning/inconsistencies_{int(time.time())}.xlsx"
+    )
 
     print("clean id")
     df["id"] = clean_ride_id(df)
@@ -566,15 +605,23 @@ def data_cleaning(df, df_stops):
 
 
 if __name__ == "__main__":
-    df = pd.read_csv("../data/rides_combined.csv", index_col=0)
-    df_stops = pd.read_excel("../data/MoDstops+Preismodell.xlsx", sheet_name="MoDstops")
+    repo = git.Repo(".", search_parent_directories=True).git.rev_parse(
+        "--show-toplevel"
+    )
+    df = pd.read_csv(f"{repo}/data/rides_combined.csv", index_col=0)
+    df_stops = pd.read_excel(
+        f"{repo}/data/other/MoDstops+Preismodell.xlsx", sheet_name="MoDstops"
+    )
+
+    # df = pd.read_csv("../data/rides_combined.csv", index_col=0)
+    # df_stops = pd.read_excel("../data/MoDstops+Preismodell.xlsx", sheet_name="MoDstops")
 
     df = df[
-        df["id"].isnull()
-        | ~df[df["id"].notnull()].duplicated(subset="id", keep="first")
+        df["id"].isnull() | ~df[df["id"].notnull()].duplicated(subset="id", keep="last")
     ]
 
     df = data_cleaning(df, df_stops)
+    # df.to_excel(f"{repo}/data/cleaning/test_{int(time.time())}.xlsx")
 
     df.to_excel("../cleaning/test_{}.xlsx".format(int(time.time())))
     print("Done!")
