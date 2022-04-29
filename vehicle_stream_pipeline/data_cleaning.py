@@ -1,5 +1,5 @@
 import time
-from datetime import datetime as dt  # , timedelta
+from datetime import datetime as dt
 
 import numpy as np
 import pandas as pd
@@ -164,7 +164,12 @@ def clean_vehicle_arrived_at(df):
     times = [3600, 60, 1]
     pickup_arrival_time = df["pickup_arrival_time"].fillna("-9")
     pickup_arrival_time = pd.Series(
-        np.where(pickup_arrival_time.str.contains("1899"), "-9", pickup_arrival_time)
+        np.where(
+            pickup_arrival_time.str.contains("1899")
+            | pickup_arrival_time.str.contains("1900"),
+            "-9",
+            pickup_arrival_time,
+        )
     )
 
     pickup_arrival_time = pickup_arrival_time.str[0:8].apply(
@@ -193,6 +198,12 @@ def clean_vehicle_arrived_at(df):
     )
 
     vehicle_arrived_at = pd.to_datetime(vehicle_arrived_at)
+
+    ##### Könnnen wir bei der ersten Bedigung arrived_at < arriving_push pauschal sagen, dass es falsch ist?
+    # Es kann ja auch sein, dass der Fahrer früher als erwartet ankommt und die Push Benachrichtigung zu spät kommt.
+    # Vielleicht sollte man hier auch einen Puffer einbauen, um so was zu umgehen, also zB arrived_at + 60Min.
+    # - Und, wenn arrived_at < arriving_push und arriving_push is not nan, dann müsste arrived_at doch arriving_push + 3Min. sein?
+    #   Ich habe nämlich jetzt recht viele arrival_deviations mit -180 sek.
 
     # Check ordering
     vehicle_arrived_at = np.where(
@@ -373,43 +384,22 @@ def clean_dropoff_first_eta(df):
 
 
 def clean_time_periods(df):
-    # # Muss weg, ggf. noch Bedingung danach, ob Str oder NaN
-    # df[
-    #     [
-    #         "vehicle_arrived_at",
-    #         "arriving_push",
-    #         "earliest_pickup_expectation",
-    #         "pickup_at",
-    #         "dropoff_at",
-    #     ]
-    # ] = df[
-    #     [
-    #         "vehicle_arrived_at",
-    #         "arriving_push",
-    #         "earliest_pickup_expectation",
-    #         "pickup_at",
-    #         "dropoff_at",
-    #     ]
-    # ].fillna(
-    #     "1999-01-01 00:00:00"
-    # )
-    # df[["ride_time", "waiting_time", "trip_time", "shortest_ridetime"]] = df[
-    #     ["ride_time", "waiting_time", "trip_time", "shortest_ridetime"]
-    # ].fillna("00:00:00")
-
+    print(df[["vehicle_arrived_at", "arriving_push"]])
     df["arrival_deviation2"] = df.apply(
         lambda row: (
             (row["vehicle_arrived_at"] - row["arriving_push"]).round(freq="s")
         ).total_seconds()
         - 180
-        if row["state"] == "completed"
+        if (row["vehicle_arrived_at"] == row["vehicle_arrived_at"])
+        and (row["arriving_push"] == row["arriving_push"])
         else np.NaN,
         axis=1,
     )
 
     df["waiting_time_s"] = df.apply(
         lambda row: (pd.to_timedelta(row["waiting_time"]).total_seconds())
-        if (row["state"] == "completed") & (row["waiting_time"] == row["waiting_time"])
+        if (row["waiting_time"] == row["waiting_time"])
+        and (len(row["waiting_time"]) == 8)
         else np.NaN,
         axis=1,
     )
@@ -419,21 +409,20 @@ def clean_time_periods(df):
                 freq="s"
             )
         ).total_seconds()
-        if row["state"] == "completed"
+        if (row["vehicle_arrived_at"] == row["vehicle_arrived_at"])
+        and (row["earliest_pickup_expectation"] == row["earliest_pickup_expectation"])
         else np.NaN,
         axis=1,
     )
 
     df["boarding_time_s"] = df.apply(
         lambda row: (pd.to_timedelta(row["boarding_time"]).total_seconds())
-        if (row["state"] == "completed")
-        and (row["boarding_time"] == row["boarding_time"])
+        if (row["boarding_time"] == row["boarding_time"])
         and (len(row["boarding_time"]) == 8)
         else (
             dt.strptime(row["boarding_time"], "%Y-%m-%d %H:%M:%S") - dt(1900, 1, 1)
         ).total_seconds()
-        if (row["state"] == "completed")
-        and (row["boarding_time"] == row["boarding_time"])
+        if (row["boarding_time"] == row["boarding_time"])
         else np.NaN,
         axis=1,
     )
@@ -441,14 +430,15 @@ def clean_time_periods(df):
         lambda row: (
             (row["pickup_at"] - row["vehicle_arrived_at"]).round(freq="s")
         ).total_seconds()
-        if row["state"] == "completed"
+        if (row["vehicle_arrived_at"] == row["vehicle_arrived_at"])
+        and (row["pickup_at"] == row["pickup_at"])
         else np.NaN,
         axis=1,
     )
 
     df["ride_time_s"] = df.apply(
         lambda row: (pd.to_timedelta(row["ride_time"]).total_seconds())
-        if (row["state"] == "completed") & (row["ride_time"] == row["ride_time"])
+        if (row["ride_time"] == row["ride_time"])
         else np.NaN,
         axis=1,
     )
@@ -456,25 +446,22 @@ def clean_time_periods(df):
         lambda row: (
             (row["dropoff_at"] - row["pickup_at"]).round(freq="s")
         ).total_seconds()
-        if row["state"] == "completed"
+        if (row["dropoff_at"] == row["dropoff_at"])
+        and (row["pickup_at"] == row["pickup_at"])
         else np.NaN,
         axis=1,
     )
 
     df["trip_time_s"] = df.apply(
         lambda row: (pd.to_timedelta(row["trip_time"]).total_seconds())
-        if (row["state"] == "completed") & (row["trip_time"] == row["trip_time"])
+        if (row["trip_time"] == row["trip_time"]) and (len(row["trip_time"]) == 8)
         else np.NaN,
         axis=1,
     )
     df["trip_time2"] = df.apply(
         lambda row: (
-            (row["ride_time2"] + row["waiting_time2"]).round(
-                freq="s"
-            )  # '2' weg wenn wir überschreiben
-        )
-        if row["state"] == "completed"
-        else np.NaN,
+            row["ride_time2"] + row["waiting_time2"]  # '2' weg wenn wir überschreiben
+        ),
         axis=1,
     )
 
@@ -489,24 +476,22 @@ def clean_time_periods(df):
 
     df["delay2"] = df.apply(
         lambda row: (
-            (row["trip_time2"] - row["shortest_ridetime_s"]).round(
-                freq="s"
-            )  # '2' weg wenn wir überschreiben
-        )
-        if (row["state"] == "completed")
-        else np.NaN,
+            row["trip_time2"]
+            - row["shortest_ridetime_s"]
+            # '2' weg wenn wir überschreiben
+        ),
         axis=1,
     )
     df["delay_s"] = df.apply(
         lambda row: (pd.to_timedelta(row["delay"]).total_seconds())
-        if (row["state"] == "completed") & (row["delay"] == row["delay"])
+        if (row["delay"] == row["delay"]) and (len(row["delay"]) == 8)
         else np.NaN,
         axis=1,
     )
 
     df["longer_route_factor2"] = df.apply(
         lambda row: round(row["ride_time2"] / row["shortest_ridetime_s"], 2)
-        if (row["state"] == "completed") & (row["shortest_ridetime_s"] != 0)
+        if (row["shortest_ridetime_s"] != 0)
         else np.NaN,
         axis=1,
     )
@@ -528,9 +513,9 @@ def data_cleaning(df, df_stops):
     df[["pickup_address", "dropoff_address"]] = clean_addresses(df, df_stops)
 
     # Zeistempel-Korrektur, daher nur completed rides:
-    df_copy = df.copy()
-    df = df[(df["state"] == "completed")]
-    df_copy = df_copy[df_copy["state"] != "completed"]
+    # df_copy = df.copy()
+    # df = df[(df["state"] == "completed")]
+    # df_copy = df_copy[df_copy["state"] != "completed"]
 
     print("clean created_at")
     df["created_at"] = clean_created_at(df)
@@ -573,7 +558,7 @@ def data_cleaning(df, df_stops):
     df["dropoff_first_eta"] = clean_dropoff_first_eta(df)
 
     # time periods nach Korrektur der Zeitstempel
-    df = (pd.concat([df, df_copy], ignore_index=False)).sort_index()
+    # df = (pd.concat([df, df_copy], ignore_index=False)).sort_index()
 
     print("clean time periods")
     df = clean_time_periods(df)
@@ -581,8 +566,13 @@ def data_cleaning(df, df_stops):
 
 
 if __name__ == "__main__":
-    df = pd.read_csv("../data/mtd_combined.csv", index_col=0)
+    df = pd.read_csv("../data/rides_combined.csv", index_col=0)
     df_stops = pd.read_excel("../data/MoDstops+Preismodell.xlsx", sheet_name="MoDstops")
+
+    df = df[
+        df["id"].isnull()
+        | ~df[df["id"].notnull()].duplicated(subset="id", keep="first")
+    ]
 
     df = data_cleaning(df, df_stops)
 
