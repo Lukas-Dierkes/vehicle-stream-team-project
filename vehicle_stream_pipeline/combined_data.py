@@ -20,9 +20,6 @@ def create_overall_dataframes(path):
         # Read current excel file
         df_dict = pd.read_excel(current_file, sheet_name=None)
 
-        for sheet_name, df in df_dict.items():
-            df["sheet_name"] = sheet_name
-
         # Extract dataframes from current excel file
         df_kpi_temp = df_dict["KPI"]
         df_dict.pop("KPI")
