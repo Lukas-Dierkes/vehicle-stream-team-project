@@ -7,41 +7,67 @@ import numpy as np
 import pandas as pd
 
 
+# remove duplicates
+def clean_duplicates(df):
+    duplicate_ids = df[df.duplicated(subset=["id"]) & (df["id"].isna() == False)]["id"]
+    duplicates = df[df["id"].isin(duplicate_ids)]
+    duplicates = duplicates.sort_values(["id", "scheduled_to"])
+    duplicates.reset_index(inplace=True)
+    df.drop(df[df["id"].isin(duplicate_ids)].index, inplace=True)
+    for index, row in duplicates.iterrows():
+        if pd.notnull(row["scheduled_to"]):
+            print(row["id"])
+            timestamp_columns = [
+                "scheduled_to",
+                "dispatched_at",
+                "arriving_push",
+                "vehicle_arrived_at",
+                "earliest_pickup_expectation",
+                "pickup_first_eta",
+                "pickup_eta",
+                "pickup_at",
+                "dropoff_first_eta",
+                "dropoff_eta",
+                "dropoff_at",
+            ]
+            for col in timestamp_columns:
+                if not pd.notnull(row[col]):
+                    print(col)
+                    print(duplicates[col][index + 1])
+                    duplicates[col][index] = duplicates[col][index + 1]
+        else:
+            duplicates.drop(index, inplace=True)
+
+    df = df.append(duplicates, ignore_index=True)
+    return df
+
+
 # Format-Check
 def check_format(df, col_type_dict):
     # check time format in order to avoid errors in cleaning
     for col, col_type in col_type_dict.items():
         if col_type == "timestamp":
-            df = df[
-                (
-                    df[col].str.match(
-                        r"[0-9]{1,4}.[0-9]{1,2}.[0-9]{1,2} [0-9]{1,2}:[0-9]{1,2}"
-                    )
-                    == True
-                )
-                | (df[col].isna())
-            ]
             df_inconsistencies = df[
                 ~(
                     (
                         df[col].str.match(
-                            r"[0-9]{1,4}.[0-9]{1,2}.[0-9]{1,2} [0-9]{1,2}:[0-9]{1,2}"
+                            r"[0-9]{1,4}.[0-9]{1,2}.[0-9]{1,2} [0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}"
                         )
                         == True
                     )
                     | (df[col].isna())
                 )
             ]
-        elif col_type == "time":
             df = df[
-                (df[col].str.match(r"[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}") == True)
-                | (
-                    df[col].str.match(r"[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}.[0-9]*")
+                (
+                    df[col].str.match(
+                        r"[0-9]{1,4}.[0-9]{1,2}.[0-9]{1,2} [0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}"
+                    )
                     == True
                 )
-                | (df[col].str.contains("1899"))
-                | (df[col].str.contains("1900") | (df[col].isna()))
+                | (df[col].isna())
             ]
+        elif col_type == "time":
             df_inconsistencies = df[
                 ~(
                     (df[col].str.match(r"[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}") == True)
@@ -50,15 +76,23 @@ def check_format(df, col_type_dict):
                     | (df[col].isna())
                 )
             ]
+            df = df[
+                (df[col].str.match(r"[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}") == True)
+                | (
+                    df[col].str.match(r"[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}.[0-9]*")
+                    == True
+                )
+                | (df[col].str.contains("1899"))
+                | (df[col].str.contains("1900"))
+                | (df[col].isna())
+            ]
     return (df, df_inconsistencies)
 
 
 # Attribute: 'id'
 def clean_ride_id(df):
     id = pd.DataFrame(data=df.loc[:, "id"], columns=["id"])
-    id.id.fillna(
-        df.created_from_offer.astype(float).astype("Int64"), inplace=True
-    )  # Why first to float and then to Int64
+    id.id.fillna(df.created_from_offer.astype("Int64"), inplace=True)
     return id
 
 
@@ -79,7 +113,7 @@ def get_stop_id(address, df_stops):
                 return row["MoDStop Id"]
         return "No match of lat and long"
     else:
-        # different naming
+        # fix different namings between MoDStop table and rides table
         if address == "Rewe Mußbach":
             address = address + " (Shoppenwiese)"
         elif address == "Lachener Straße":
@@ -108,7 +142,6 @@ def clean_addresses(df, df_stops):
         "--show-toplevel"
     )
     file = f"{repo}/data/cleaning/unmatched_addresses_{int(time.time())}.xlsx"
-    # file = "../cleaning/unmatched_addresses_{}.xlsx".format(int(time.time()))
     mask = (
         (addresses["pickup_id"] == "No match of address name")
         | (addresses["pickup_id"] == "No match of lat and long")
@@ -134,7 +167,7 @@ def clean_scheduled_to(df):
     ##### Hier gibt es 3 rides mit einem scheduled_to Datum, das vor created_at liegt, dadurch wurde automatisch vom System dispatched_at
     # mit 8Min. vor dem scheduled_at gefüllt und muss korrigiert werden und es wurde earliest_pickup_expectation
     # 5 minuten vor scheduled_to gefüllt, das muss auch korrigiert werden (letzters wird vermutlich dann bei clean_earliest.. gefixed)
-    # Ansonsten scheint die order korrekt zu sein
+    # Ansonsten scheint die order korrekt zu sein --> Wird alles später gelöst
     scheduled_to = np.where(
         scheduled_to < df["created_at"], df["created_at"], scheduled_to
     )
@@ -153,21 +186,23 @@ def clean_dispatched_at(df):
         dispatched_at,
     )
 
-    ##### Ich verstehe die 1. Bedingungen hier nicht:
-    # 1. Bedingung: Wenn dispatched vor oder gleich created ist, dann soll scheduled_to-8Min genommen werden
-    #       Aber vorher wurden zB alle NaN von dispatched mit created gefüllt, d.h. bei diesen rides
-    #       wird immer scheduled_to-8Min genommen auch für den Fall, dass es keine Vorbuchung ist und somit
-    #       scheduled_to im vorherigen Cleaning auf created_at gesetzt wurde. Und eigentlich sind doch alle rides, die
-    #       nicht vorbestellt wurden direkt gleichzeit zu created_at auch dispatched_at und fallen somit darein
-
-    # Lösung: Strikt kleiner als kleiner gleich
-
     # Check correct ordering
     dispatched_at = np.where(
-        (dispatched_at < df["created_at"])
-        | (dispatched_at <= df["scheduled_to"] - pd.Timedelta(minutes=9)),
+        (
+            (dispatched_at < df["created_at"])
+            | (dispatched_at >= (df["scheduled_to"] + pd.Timedelta(minutes=9)))
+        )
+        & (df["scheduled_to"] != df["created_at"]),
         df["scheduled_to"] - pd.Timedelta(minutes=8),
-        dispatched_at,
+        np.where(
+            (
+                (dispatched_at < df["created_at"])
+                | (dispatched_at >= (df["scheduled_to"] + pd.Timedelta(minutes=9)))
+            )
+            & (df["scheduled_to"] == df["created_at"]),
+            df["scheduled_to"],
+            dispatched_at,
+        ),
     )
     dispatched_at = pd.to_datetime(dispatched_at)
 
@@ -195,7 +230,6 @@ def clean_vehicle_arrived_at(df):
     avg_pickup_arrival_time = sum(x for x in pickup_arrival_time if x != -9) / len(
         list(x for x in pickup_arrival_time if x != -9)
     )
-    print(avg_pickup_arrival_time)
 
     vehicle_arrived_at = np.where(
         (vehicle_arrived_at.isna()) & (df["state"] == "completed"),
@@ -213,16 +247,11 @@ def clean_vehicle_arrived_at(df):
 
     vehicle_arrived_at = pd.to_datetime(vehicle_arrived_at)
 
-    ##### Könnnen wir bei der ersten Bedigung arrived_at < arriving_push pauschal sagen, dass es falsch ist?
-    # Es kann ja auch sein, dass der Fahrer früher als erwartet ankommt und die Push Benachrichtigung zu spät kommt.
-    # Vielleicht sollte man hier auch einen Puffer einbauen, um so was zu umgehen, also zB arrived_at + 60Min.
-    # - Und, wenn arrived_at < arriving_push und arriving_push is not nan, dann müsste arrived_at doch arriving_push + 3Min. sein?
-    #   Ich habe nämlich jetzt recht viele arrival_deviations mit -180 sek.
-
     # Check ordering
     vehicle_arrived_at = np.where(
         (vehicle_arrived_at < arriving_push)
-        | (vehicle_arrived_at + pd.Timedelta(minutes=60) < df["scheduled_to"]),
+        | (vehicle_arrived_at + pd.Timedelta(minutes=60) < df["scheduled_to"])
+        | (vehicle_arrived_at - pd.Timedelta(minutes=60) > df["scheduled_to"]),
         np.where(
             arriving_push.isna(),
             np.where(
@@ -234,7 +263,11 @@ def clean_vehicle_arrived_at(df):
                 df["dispatched_at"] + pd.Timedelta(seconds=avg_pickup_arrival_time),
                 df["pickup_at"],
             ),
-            arriving_push,
+            np.where(
+                ((arriving_push + pd.Timedelta(minutes=3)) < df["pickup_at"]),
+                arriving_push + pd.Timedelta(minutes=3),
+                arriving_push,
+            ),
         ),
         vehicle_arrived_at,
     )
@@ -254,20 +287,18 @@ def clean_arriving_push(df):
     return arriving_push
 
 
-# Attribute: 'pickup_arrival_time'
-def clean_pickup_arrival_time(df):
-    pickup_arrival_time = (df["vehicle_arrived_at"] - df["dispatched_at"]).dt.seconds
-    return pickup_arrival_time
-
-
 # Attribute: 'earliest_pickup_expectation'
 def clean_earlierst_pickup_expectation(df):
     earlierst_pickup_expectation = pd.to_datetime(df["earliest_pickup_expectation"])
-    earlierst_pickup_expectation = df["dispatched_at"] + pd.Timedelta(minutes=3)
-
+    earlierst_pickup_expectation = np.where(
+        df["scheduled_to"] == df["created_at"],
+        df["dispatched_at"] + pd.Timedelta(minutes=3),
+        df["scheduled_to"] - pd.Timedelta(minutes=5),
+    )
     return earlierst_pickup_expectation
 
 
+# Attribute: 'pickup_at'
 def clean_pickup_at(df):
     pickup_at = pd.to_datetime(df["pickup_at"])
 
@@ -283,7 +314,6 @@ def clean_pickup_at(df):
     avg_boarding_time = sum(x for x in boarding_time if x != -9) / len(
         list(x for x in boarding_time if x != -9)
     )
-    print(avg_boarding_time)
 
     pickup_at = np.where(
         (pickup_at.isna() == True) & (df["state"] == "completed"),
@@ -301,7 +331,7 @@ def clean_pickup_at(df):
     pickup_at = np.where(
         (pickup_at < df["vehicle_arrived_at"]),
         np.where(
-            df["pickup_eta"].isna(),
+            df["pickup_eta"].isna() | (df["pickup_eta"] < df["vehicle_arrived_at"]),
             np.where(
                 (
                     df["vehicle_arrived_at"] + pd.Timedelta(seconds=avg_boarding_time)
@@ -309,7 +339,7 @@ def clean_pickup_at(df):
                 )
                 | (df["dropoff_at"].isna() == True),
                 df["vehicle_arrived_at"] + pd.Timedelta(seconds=avg_boarding_time),
-                df["dropoff_at"],
+                df["vehicle_arrived_at"],
             ),
             df["pickup_eta"],
         ),
@@ -321,6 +351,7 @@ def clean_pickup_at(df):
     return pickup_at
 
 
+# Attribute: 'pickup_eta'
 def clean_pickup_eta(df):
     pickup_eta = pd.to_datetime(df["pickup_eta"])
 
@@ -329,6 +360,7 @@ def clean_pickup_eta(df):
     return pickup_eta
 
 
+# Attribute: 'pickup_first_eta'
 def clean_pickup_first_eta(df):
     pickup_first_eta = pd.to_datetime(df["pickup_first_eta"])
 
@@ -337,6 +369,7 @@ def clean_pickup_first_eta(df):
     return pickup_first_eta
 
 
+# Attribute: 'dropoff_at'
 def clean_dropoff_at(df):
     dropoff_at = pd.to_datetime(df["dropoff_at"])
     ftr = [3600, 60, 1]
@@ -373,6 +406,7 @@ def clean_dropoff_at(df):
     return dropoff_at
 
 
+# Attribute: 'dropoff_eta'
 def clean_dropoff_eta(df):
     dropoff_eta = pd.to_datetime(df["dropoff_eta"])
 
@@ -381,6 +415,7 @@ def clean_dropoff_eta(df):
     return dropoff_eta
 
 
+# Attribute: 'dropoff_first_eta'
 def clean_dropoff_first_eta(df):
     dropoff_first_eta = pd.to_datetime(df["dropoff_first_eta"])
     ftr = [3600, 60, 1]
@@ -389,16 +424,23 @@ def clean_dropoff_first_eta(df):
         .str[0:8]
         .apply(lambda row: sum([a * b for a, b in zip(ftr, map(int, row.split(":")))]))
     )
-
     dropoff_first_eta = dropoff_first_eta.fillna(
         df["pickup_first_eta"] + pd.to_timedelta(shortest_ridetime)
     )
-
     return dropoff_first_eta
 
 
+# Attributes: ['pickup_arrival_time', 'arrival_deviation', 'waiting_time', 'boarding_time', 'ride_time', 'trip_time', 'shortest_ridetime', 'delay', 'longer_route_factor']
 def clean_time_periods(df):
-    df["arrival_deviation2"] = df.apply(
+    # Attribute: 'pickup_arrival_time'
+    def clean_pickup_arrival_time(df):
+        pickup_arrival_time = (
+            df["vehicle_arrived_at"] - df["dispatched_at"]
+        ).dt.seconds
+        return pickup_arrival_time
+
+    # Attribute: 'arrival_deviation'
+    df["arrival_deviation"] = df.apply(
         lambda row: (
             (row["vehicle_arrived_at"] - row["arriving_push"]).round(freq="s")
         ).total_seconds()
@@ -409,14 +451,8 @@ def clean_time_periods(df):
         axis=1,
     )
 
-    df["waiting_time_s"] = df.apply(
-        lambda row: (pd.to_timedelta(row["waiting_time"]).total_seconds())
-        if (row["waiting_time"] == row["waiting_time"])
-        and (len(row["waiting_time"]) == 8)
-        else np.NaN,
-        axis=1,
-    )
-    df["waiting_time2"] = df.apply(
+    # Attribute: 'waiting_time'
+    df["waiting_time"] = df.apply(
         lambda row: (
             (row["vehicle_arrived_at"] - row["earliest_pickup_expectation"]).round(
                 freq="s"
@@ -428,18 +464,8 @@ def clean_time_periods(df):
         axis=1,
     )
 
-    df["boarding_time_s"] = df.apply(
-        lambda row: (pd.to_timedelta(row["boarding_time"]).total_seconds())
-        if (row["boarding_time"] == row["boarding_time"])
-        and (len(row["boarding_time"]) == 8)
-        else (
-            dt.strptime(row["boarding_time"], "%Y-%m-%d %H:%M:%S") - dt(1900, 1, 1)
-        ).total_seconds()
-        if (row["boarding_time"] == row["boarding_time"])
-        else np.NaN,
-        axis=1,
-    )
-    df["boarding_time2"] = df.apply(
+    # Attribute: 'boarding_time'
+    df["boarding_time"] = df.apply(
         lambda row: (
             (row["pickup_at"] - row["vehicle_arrived_at"]).round(freq="s")
         ).total_seconds()
@@ -449,13 +475,8 @@ def clean_time_periods(df):
         axis=1,
     )
 
-    df["ride_time_s"] = df.apply(
-        lambda row: (pd.to_timedelta(row["ride_time"]).total_seconds())
-        if (row["ride_time"] == row["ride_time"])
-        else np.NaN,
-        axis=1,
-    )
-    df["ride_time2"] = df.apply(
+    # Attribute: 'ride_time'
+    df["ride_time"] = df.apply(
         lambda row: (
             (row["dropoff_at"] - row["pickup_at"]).round(freq="s")
         ).total_seconds()
@@ -465,20 +486,14 @@ def clean_time_periods(df):
         axis=1,
     )
 
-    df["trip_time_s"] = df.apply(
-        lambda row: (pd.to_timedelta(row["trip_time"]).total_seconds())
-        if (row["trip_time"] == row["trip_time"]) and (len(row["trip_time"]) == 8)
-        else np.NaN,
-        axis=1,
-    )
-    df["trip_time2"] = df.apply(
-        lambda row: (
-            row["ride_time2"] + row["waiting_time2"]  # '2' weg wenn wir überschreiben
-        ),
+    # Attribute: 'trip_time'
+    df["trip_time"] = df.apply(
+        lambda row: (row["ride_time"] + row["waiting_time"]),
         axis=1,
     )
 
-    df["shortest_ridetime_s"] = df.apply(
+    # Attribute: 'shortest_ridetime'
+    df["shortest_ridetime"] = df.apply(
         lambda row: (
             pd.to_timedelta(row["shortest_ridetime"]).round(freq="s").total_seconds()
         )
@@ -487,24 +502,16 @@ def clean_time_periods(df):
         axis=1,
     )
 
-    df["delay2"] = df.apply(
-        lambda row: (
-            row["trip_time2"]
-            - row["shortest_ridetime_s"]
-            # '2' weg wenn wir überschreiben
-        ),
-        axis=1,
-    )
-    df["delay_s"] = df.apply(
-        lambda row: (pd.to_timedelta(row["delay"]).total_seconds())
-        if (row["delay"] == row["delay"]) and (len(row["delay"]) == 8)
-        else np.NaN,
+    # Attribute: 'delay'
+    df["delay"] = df.apply(
+        lambda row: (row["trip_time"] - row["shortest_ridetime"]),
         axis=1,
     )
 
-    df["longer_route_factor2"] = df.apply(
-        lambda row: round(row["ride_time2"] / row["shortest_ridetime_s"], 2)
-        if (row["shortest_ridetime_s"] != 0)
+    # Attribute: 'longer_route_factor'
+    df["longer_route_factor"] = df.apply(
+        lambda row: round(row["ride_time"] / row["shortest_ridetime"], 2)
+        if (row["shortest_ridetime"] != 0)
         else np.NaN,
         axis=1,
     )
@@ -537,10 +544,10 @@ def data_cleaning(df, df_stops):
     }
 
     df, df_inconsistencies = check_format(df, time_columns)
-
-    df_inconsistencies.to_excel(
-        f"{repo}/data/cleaning/inconsistencies_{int(time.time())}.xlsx"
-    )
+    if df_inconsistencies.empty == False:
+        df_inconsistencies.to_excel(
+            f"{repo}/data/cleaning/inconsistencies_{int(time.time())}.xlsx"
+        )
 
     print("clean id")
     df["id"] = clean_ride_id(df)
@@ -550,11 +557,6 @@ def data_cleaning(df, df_stops):
 
     print("clean addresses")
     df[["pickup_address", "dropoff_address"]] = clean_addresses(df, df_stops)
-
-    # Zeistempel-Korrektur, daher nur completed rides:
-    # df_copy = df.copy()
-    # df = df[(df["state"] == "completed")]
-    # df_copy = df_copy[df_copy["state"] != "completed"]
 
     print("clean created_at")
     df["created_at"] = clean_created_at(df)
@@ -570,10 +572,6 @@ def data_cleaning(df, df_stops):
 
     print("clean arriving_push")
     df["arriving_push"] = clean_arriving_push(df)
-
-    # ggf. zu Zeitperioden hinzufügen
-    print("clean pickup_arrival_time")
-    df["pickup_arrival_time"] = clean_pickup_arrival_time(df)
 
     print("clean earliest_pickup_expectation")
     df["earliest_pickup_expectation"] = clean_earlierst_pickup_expectation(df)
@@ -596,9 +594,6 @@ def data_cleaning(df, df_stops):
     print("clean dropoff_first_eta")
     df["dropoff_first_eta"] = clean_dropoff_first_eta(df)
 
-    # time periods nach Korrektur der Zeitstempel
-    # df = (pd.concat([df, df_copy], ignore_index=False)).sort_index()
-
     print("clean time periods")
     df = clean_time_periods(df)
     return df
@@ -613,15 +608,10 @@ if __name__ == "__main__":
         f"{repo}/data/other/MoDstops+Preismodell.xlsx", sheet_name="MoDstops"
     )
 
-    # df = pd.read_csv("../data/rides_combined.csv", index_col=0)
-    # df_stops = pd.read_excel("../data/MoDstops+Preismodell.xlsx", sheet_name="MoDstops")
-
-    df = df[
-        df["id"].isnull() | ~df[df["id"].notnull()].duplicated(subset="id", keep="last")
-    ]
+    df = clean_duplicates(df)
 
     df = data_cleaning(df, df_stops)
-    # df.to_excel(f"{repo}/data/cleaning/test_{int(time.time())}.xlsx")
 
-    df.to_excel("../cleaning/test_{}.xlsx".format(int(time.time())))
+    df.to_excel(f"{repo}/data/cleaning/test_{int(time.time())}.xlsx")
+
     print("Done!")
