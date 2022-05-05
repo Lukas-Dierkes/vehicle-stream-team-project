@@ -32,7 +32,8 @@ def create_overall_dataframes(path):
         df_kpi = pd.concat([df_kpi, df_kpi_temp], axis=0, ignore_index=True)
         df_mtd = pd.concat([df_mtd, df_mtd_temp], axis=0, ignore_index=True)
         df_rides = pd.concat([df_rides, df_rides_temp], axis=0, ignore_index=True)
-
+    
+    df_rides.drop("Unnamed: 0", inplace=True, axis=1)
     return {"df_kpi": df_kpi, "df_mtd": df_mtd, "df_rides": df_rides}
 
 
