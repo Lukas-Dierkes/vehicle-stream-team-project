@@ -612,6 +612,6 @@ if __name__ == "__main__":
     df = data_cleaning(df, df_stops)
    
 
-    df.to_csv(f"{repo}/data/cleaning/test_{int(time.time())}.xlsx", index = False)
+    df.to_csv(f"{repo}/data/cleaning/test_{int(time.time())}.csv", index = False)
 
     print("Done!")
