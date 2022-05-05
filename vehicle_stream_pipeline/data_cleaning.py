@@ -433,11 +433,10 @@ def clean_dropoff_first_eta(df):
 # Attributes: ['pickup_arrival_time', 'arrival_deviation', 'waiting_time', 'boarding_time', 'ride_time', 'trip_time', 'shortest_ridetime', 'delay', 'longer_route_factor']
 def clean_time_periods(df):
     # Attribute: 'pickup_arrival_time'
-    def clean_pickup_arrival_time(df):
-        pickup_arrival_time = (
-            df["vehicle_arrived_at"] - df["dispatched_at"]
-        ).dt.seconds
-        return pickup_arrival_time
+    df["pickup_arrival_time"] = (
+        df["vehicle_arrived_at"] - df["dispatched_at"]
+    ).dt.seconds
+   
 
     # Attribute: 'arrival_deviation'
     df["arrival_deviation"] = df.apply(
