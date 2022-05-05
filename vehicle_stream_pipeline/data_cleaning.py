@@ -610,7 +610,8 @@ if __name__ == "__main__":
     df = clean_duplicates(df)
 
     df = data_cleaning(df, df_stops)
+   
 
-    df.to_excel(f"{repo}/data/cleaning/test_{int(time.time())}.xlsx")
+    df.to_csv(f"{repo}/data/cleaning/test_{int(time.time())}.xlsx", index = False)
 
     print("Done!")
