@@ -27,7 +27,6 @@ def create_overall_dataframes(path):
         df_dict.pop("MTD")
         # union all rides from all days in current excel file
         df_rides_temp = pd.concat(df_dict, ignore_index=True)
-        df_rides_temp["file_name"] = str(filename)
 
         # Create big dataframes over all excel files (all months combined)
         df_kpi = pd.concat([df_kpi, df_kpi_temp], axis=0, ignore_index=True)
