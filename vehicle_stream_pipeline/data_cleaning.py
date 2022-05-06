@@ -1,4 +1,5 @@
 import time
+import warnings
 from datetime import datetime as dt
 from re import M
 
@@ -6,6 +7,7 @@ import git
 import numpy as np
 import pandas as pd
 
+warnings.filterwarnings("ignore")
 
 # remove duplicates
 def clean_duplicates(df):
@@ -16,7 +18,6 @@ def clean_duplicates(df):
     df.drop(df[df["id"].isin(duplicate_ids)].index, inplace=True)
     for index, row in duplicates.iterrows():
         if pd.notnull(row["scheduled_to"]):
-            print(row["id"])
             timestamp_columns = [
                 "scheduled_to",
                 "dispatched_at",
@@ -32,8 +33,6 @@ def clean_duplicates(df):
             ]
             for col in timestamp_columns:
                 if not pd.notnull(row[col]):
-                    print(col)
-                    print(duplicates[col][index + 1])
                     duplicates[col][index] = duplicates[col][index + 1]
         else:
             duplicates.drop(index, inplace=True)
@@ -44,10 +43,11 @@ def clean_duplicates(df):
 
 # Format-Check
 def check_format(df, col_type_dict):
+    df_inconsistencies = pd.DataFrame(columns=list(df.columns))
     # check time format in order to avoid errors in cleaning
     for col, col_type in col_type_dict.items():
         if col_type == "timestamp":
-            df_inconsistencies = df[
+            df_inconsistencies_temp = df[
                 ~(
                     (
                         df[col].str.match(
@@ -58,6 +58,10 @@ def check_format(df, col_type_dict):
                     | (df[col].isna())
                 )
             ]
+
+            df_inconsistencies = pd.concat(
+                [df_inconsistencies, df_inconsistencies_temp], axis=0, ignore_index=True
+            )
             df = df[
                 (
                     df[col].str.match(
@@ -68,7 +72,7 @@ def check_format(df, col_type_dict):
                 | (df[col].isna())
             ]
         elif col_type == "time":
-            df_inconsistencies = df[
+            df_inconsistencies_temp = df[
                 ~(
                     (df[col].str.match(r"[0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}") == True)
                     | (df[col].str.contains("1899"))
@@ -86,7 +90,31 @@ def check_format(df, col_type_dict):
                 | (df[col].str.contains("1900"))
                 | (df[col].isna())
             ]
+            df_inconsistencies = pd.concat(
+                [df_inconsistencies, df_inconsistencies_temp], axis=0, ignore_index=True
+            )
+
+        elif col_type == "numerical":
+            df_inconsistencies_temp = df[
+                ~(
+                    df[col].astype(str).str.replace(".", "").str.isdigit()
+                    | (df[col].isna())
+                )
+            ]
+            df = df[
+                df[col].astype(str).str.replace(".", "").str.isdigit() | df[col].isna()
+            ]
+            df[col] = df[col].astype(float)
+            df_inconsistencies = pd.concat(
+                [df_inconsistencies, df_inconsistencies_temp], axis=0, ignore_index=True
+            )
+
     return (df, df_inconsistencies)
+
+
+def clean_free_ride(df):
+    free_ride = np.where(df["free_ride"] == 1, True, False)
+    return free_ride
 
 
 # Attribute: 'id'
@@ -436,7 +464,6 @@ def clean_time_periods(df):
     df["pickup_arrival_time"] = (
         df["vehicle_arrived_at"] - df["dispatched_at"]
     ).dt.seconds
-   
 
     # Attribute: 'arrival_deviation'
     df["arrival_deviation"] = df.apply(
@@ -520,7 +547,9 @@ def clean_time_periods(df):
 
 def data_cleaning(df, df_stops):
 
-    time_columns = {
+    columns = {
+        "distance": "numerical",
+        "number_of_passenger": "numerical",
         "created_at": "timestamp",
         "scheduled_to": "timestamp",
         "dispatched_at": "timestamp",
@@ -542,7 +571,7 @@ def data_cleaning(df, df_stops):
         "delay": "time",
     }
 
-    df, df_inconsistencies = check_format(df, time_columns)
+    df, df_inconsistencies = check_format(df, columns)
     if df_inconsistencies.empty == False:
         df_inconsistencies.to_excel(
             f"{repo}/data/cleaning/inconsistencies_{int(time.time())}.xlsx"
@@ -556,6 +585,9 @@ def data_cleaning(df, df_stops):
 
     print("clean addresses")
     df[["pickup_address", "dropoff_address"]] = clean_addresses(df, df_stops)
+
+    print("clean free_rides")
+    df["free_ride"] = clean_free_ride(df)
 
     print("clean created_at")
     df["created_at"] = clean_created_at(df)
@@ -610,8 +642,7 @@ if __name__ == "__main__":
     df = clean_duplicates(df)
 
     df = data_cleaning(df, df_stops)
-   
 
-    df.to_csv(f"{repo}/data/cleaning/test_{int(time.time())}.csv", index = False)
+    df.to_csv(f"{repo}/data/cleaning/test_{int(time.time())}.csv", index=False)
 
     print("Done!")
