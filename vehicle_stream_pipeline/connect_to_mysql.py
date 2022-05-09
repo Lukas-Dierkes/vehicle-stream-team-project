@@ -1,5 +1,7 @@
 # in case of authentication error: pip install mysql-connector-python
 # VPN Connection needs to established first
+from datetime import datetime
+
 import MySQLdb as my
 import pandas as pd
 
@@ -59,6 +61,11 @@ class Database:
         else:
             cnx = my.connect(*Database.cnx_parameters)
         cursor = cnx.cursor()
+
+        # add column 'db_updated_at'
+        date_time = datetime.now()
+        df["db_updated_at"] = date_time
+        print(f"Added column 'db_updated_at' {date_time}")
 
         # drop columns in input df which dont exist in db
         query = f"DESCRIBE {table}"
