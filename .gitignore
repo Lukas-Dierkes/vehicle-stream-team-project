@@ -3,3 +3,4 @@ data/.DS_Store
 data/kpi_combined.csv
 data/mtd_combined.csv
 data/normal_rides/.DS_Store
+vehicle_stream_pipeline/Data_inconsistencies.xlsx
