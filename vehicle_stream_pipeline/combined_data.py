@@ -19,9 +19,6 @@ def create_overall_dataframes(path):
         # Read current excel file
         df_dict = pd.read_excel(current_file, sheet_name=None)
 
-        for sheet_name, df in df_dict.items():
-            df["sheet_name"] = sheet_name
-
         # Extract dataframes from current excel file
         df_kpi_temp = df_dict["KPI"]
         df_dict.pop("KPI")
@@ -29,13 +26,12 @@ def create_overall_dataframes(path):
         df_dict.pop("MTD")
         # union all rides from all days in current excel file
         df_rides_temp = pd.concat(df_dict, ignore_index=True)
-        df_rides_temp["file_name"] = str(filename)
 
         # Create big dataframes over all excel files (all months combined)
         df_kpi = pd.concat([df_kpi, df_kpi_temp], axis=0, ignore_index=True)
         df_mtd = pd.concat([df_mtd, df_mtd_temp], axis=0, ignore_index=True)
         df_rides = pd.concat([df_rides, df_rides_temp], axis=0, ignore_index=True)
-
+    
     return {"df_kpi": df_kpi, "df_mtd": df_mtd, "df_rides": df_rides}
 
 

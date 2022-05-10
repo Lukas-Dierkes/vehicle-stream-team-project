@@ -4,3 +4,11 @@ data/kpi_combined.csv
 data/mtd_combined.csv
 data/normal_rides/.DS_Store
 vehicle_stream_pipeline/Data_inconsistencies.xlsx
+data/rides_combined.csv
+data/normal_rides/Rides_2022-03.xlsx
+data/normal_rides/Rides_2022-02.xlsx
+data/normal_rides/Rides_2022-01.xlsx
+data/normal_rides/Rides_2021-12.xlsx
+data/normal_rides/Rides_2021-11.xlsx
+data/normal_rides/Rides_2021-10.xlsx
+data/normal_rides/Rides_2021-09.xlsx
