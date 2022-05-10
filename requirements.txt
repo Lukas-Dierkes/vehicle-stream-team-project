@@ -1,3 +1,4 @@
 pytest
 mypy
 pandas
+mysql-connector-python
