@@ -139,7 +139,7 @@ def get_stop_id(address, df_stops):
         for index, row in df_stops.iterrows():
             if str(row["MoDStop Lat"]) == lat and str(row["MoDStop Long"]) == long:
                 return row["MoDStop Id"]
-        return "No match of lat and long"
+        return 0
     else:
         # fix different namings between MoDStop table and rides table
         if address == "Rewe Mußbach":
@@ -151,7 +151,7 @@ def get_stop_id(address, df_stops):
                 return row["MoDStop Id"]
             elif address == "Würzmühle":
                 return 11009
-        return "No match of address name"
+        return 0
 
 
 def clean_addresses(df, df_stops):
@@ -170,12 +170,7 @@ def clean_addresses(df, df_stops):
         "--show-toplevel"
     )
     file = f"{repo}/data/cleaning/unmatched_addresses_{int(time.time())}.xlsx"
-    mask = (
-        (addresses["pickup_id"] == "No match of address name")
-        | (addresses["pickup_id"] == "No match of lat and long")
-        | (addresses["dropoff_id"] == "No match of lat and long")
-        | (addresses["dropoff_id"] == "No match of address name")
-    )
+    mask = (addresses["pickup_id"] == 0) | (addresses["dropoff_id"] == 0)
     df[mask].to_excel(file)
     addresses.drop(columns=["pickup_address", "dropoff_address"], axis=1, inplace=True)
     return addresses
