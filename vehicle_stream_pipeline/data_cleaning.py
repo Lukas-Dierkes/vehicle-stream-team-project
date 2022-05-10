@@ -540,6 +540,22 @@ def clean_time_periods(df):
     return df
 
 
+# Attribute: 'rating'
+def clean_rating(df):
+    rating = df["rating"]
+    rating = np.where(
+        (
+            df["rating"].str.match(
+                r"[0-9]{1,4}.[0-9]{1,2}.[0-9]{1,2} [0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}"
+            )
+            == True
+        ),
+        rating.str[9].astype(float),
+        df["rating"],
+    )
+    return rating
+
+
 def data_cleaning(df, df_stops):
 
     columns = {
@@ -622,6 +638,9 @@ def data_cleaning(df, df_stops):
 
     print("clean time periods")
     df = clean_time_periods(df)
+
+    print("clean rating")
+    df["rating"] = clean_rating(df)
     return df
 
 
