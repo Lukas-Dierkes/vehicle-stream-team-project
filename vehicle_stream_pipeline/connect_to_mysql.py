@@ -96,8 +96,11 @@ class Database:
 
         # commit INSERT Query and close connection
         # executemany https://dev.mysql.com/doc/connector-python/en/connector-python-api-mysqlcursor-executemany.html
-        cursor.executemany(query, df_list)
-        cnx.commit()
-        cnx.close()
-
-        print("Commit Succesful")
+        try:
+            cursor.executemany(query, df_list)
+            cnx.commit()
+            cnx.close()
+            print("Commit Succesful")
+        except:
+            print("Exception occured - connection closed")
+            cnx.close()
