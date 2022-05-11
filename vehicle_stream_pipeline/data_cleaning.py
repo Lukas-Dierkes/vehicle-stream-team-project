@@ -339,8 +339,6 @@ def clean_pickup_at(df):
         list(x for x in boarding_time if x != -9)
     )
     avg_boarding_time = round(avg_boarding_time)
-    print(avg_boarding_time)
-    print(pd.Timedelta(avg_boarding_time))
     pickup_at = np.where(
         (pickup_at.isna() == True) & (df["state"] == "completed"),
         np.where(
@@ -451,7 +449,7 @@ def clean_dropoff_first_eta(df):
         .apply(lambda row: sum([a * b for a, b in zip(ftr, map(int, row.split(":")))]))
     )
     dropoff_first_eta = dropoff_first_eta.fillna(
-        df["pickup_first_eta"] + pd.to_timedelta(seconds=shortest_ridetime)
+        df["pickup_first_eta"] + pd.to_timedelta(shortest_ridetime, unit="S")
     )
     return dropoff_first_eta
 
