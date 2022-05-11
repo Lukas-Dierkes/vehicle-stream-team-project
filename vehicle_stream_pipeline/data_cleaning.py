@@ -253,6 +253,7 @@ def clean_vehicle_arrived_at(df):
     avg_pickup_arrival_time = sum(x for x in pickup_arrival_time if x != -9) / len(
         list(x for x in pickup_arrival_time if x != -9)
     )
+    avg_pickup_arrival_time = round(avg_pickup_arrival_time)
 
     vehicle_arrived_at = np.where(
         (vehicle_arrived_at.isna()) & (df["state"] == "completed"),
@@ -337,12 +338,14 @@ def clean_pickup_at(df):
     avg_boarding_time = sum(x for x in boarding_time if x != -9) / len(
         list(x for x in boarding_time if x != -9)
     )
-
+    avg_boarding_time = round(avg_boarding_time)
+    print(avg_boarding_time)
+    print(pd.Timedelta(avg_boarding_time))
     pickup_at = np.where(
         (pickup_at.isna() == True) & (df["state"] == "completed"),
         np.where(
             df["pickup_eta"].isna(),
-            df["vehicle_arrived_at"] + pd.Timedelta(avg_boarding_time),
+            df["vehicle_arrived_at"] + pd.Timedelta(seconds=avg_boarding_time),
             df["pickup_eta"],
         ),
         pickup_at,
