@@ -451,7 +451,7 @@ def clean_dropoff_first_eta(df):
         .apply(lambda row: sum([a * b for a, b in zip(ftr, map(int, row.split(":")))]))
     )
     dropoff_first_eta = dropoff_first_eta.fillna(
-        df["pickup_first_eta"] + pd.to_timedelta(shortest_ridetime)
+        df["pickup_first_eta"] + pd.to_timedelta(seconds=shortest_ridetime)
     )
     return dropoff_first_eta
 
