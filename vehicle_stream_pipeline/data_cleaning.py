@@ -253,6 +253,7 @@ def clean_vehicle_arrived_at(df):
     avg_pickup_arrival_time = sum(x for x in pickup_arrival_time if x != -9) / len(
         list(x for x in pickup_arrival_time if x != -9)
     )
+    avg_pickup_arrival_time = round(avg_pickup_arrival_time)
 
     vehicle_arrived_at = np.where(
         (vehicle_arrived_at.isna()) & (df["state"] == "completed"),
@@ -337,12 +338,12 @@ def clean_pickup_at(df):
     avg_boarding_time = sum(x for x in boarding_time if x != -9) / len(
         list(x for x in boarding_time if x != -9)
     )
-
+    avg_boarding_time = round(avg_boarding_time)
     pickup_at = np.where(
         (pickup_at.isna() == True) & (df["state"] == "completed"),
         np.where(
             df["pickup_eta"].isna(),
-            df["vehicle_arrived_at"] + pd.Timedelta(avg_boarding_time),
+            df["vehicle_arrived_at"] + pd.Timedelta(seconds=avg_boarding_time),
             df["pickup_eta"],
         ),
         pickup_at,
@@ -448,7 +449,7 @@ def clean_dropoff_first_eta(df):
         .apply(lambda row: sum([a * b for a, b in zip(ftr, map(int, row.split(":")))]))
     )
     dropoff_first_eta = dropoff_first_eta.fillna(
-        df["pickup_first_eta"] + pd.to_timedelta(shortest_ridetime)
+        df["pickup_first_eta"] + pd.to_timedelta(shortest_ridetime, unit="S")
     )
     return dropoff_first_eta
 
@@ -540,6 +541,22 @@ def clean_time_periods(df):
     return df
 
 
+# Attribute: 'rating'
+def clean_rating(df):
+    rating = df["rating"]
+    rating = np.where(
+        (
+            df["rating"].str.match(
+                r"[0-9]{1,4}.[0-9]{1,2}.[0-9]{1,2} [0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}"
+            )
+            == True
+        ),
+        rating.str[9].astype(float),
+        df["rating"],
+    )
+    return rating
+
+
 def data_cleaning(df, df_stops):
 
     columns = {
@@ -622,6 +639,9 @@ def data_cleaning(df, df_stops):
 
     print("clean time periods")
     df = clean_time_periods(df)
+
+    print("clean rating")
+    df["rating"] = clean_rating(df)
     return df
 
 
