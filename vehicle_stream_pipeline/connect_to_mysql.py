@@ -27,7 +27,7 @@ class Database:
     )
 
     # function for read_querys
-    def query_dataframe(table, query="SELECT * FROM", local=False):
+    def query_dataframe(table="rides", query="SELECT * FROM", local=False):
 
         # set up connection based on local or remote connection
         if local:
@@ -101,6 +101,8 @@ class Database:
             cnx.commit()
             cnx.close()
             print("Commit Succesful")
-        except:
-            print("Exception occured - connection closed")
+        except Exception as e:
+            print("Exception occured:")
+            print(e)
             cnx.close()
+            print("Connection closed")
