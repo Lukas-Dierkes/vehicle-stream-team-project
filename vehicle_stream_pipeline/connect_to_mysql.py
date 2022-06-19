@@ -27,7 +27,7 @@ class Database:
     )
 
     # function for read_querys
-    def query_dataframe(table, query="SELECT * FROM", local=False):
+    def query_dataframe(table="rides", query="SELECT * FROM", local=False):
 
         # set up connection based on local or remote connection
         if local:
@@ -96,8 +96,13 @@ class Database:
 
         # commit INSERT Query and close connection
         # executemany https://dev.mysql.com/doc/connector-python/en/connector-python-api-mysqlcursor-executemany.html
-        cursor.executemany(query, df_list)
-        cnx.commit()
-        cnx.close()
-
-        print("Commit Succesful")
+        try:
+            cursor.executemany(query, df_list)
+            cnx.commit()
+            cnx.close()
+            print("Commit Succesful")
+        except Exception as e:
+            print("Exception occured:")
+            print(e)
+            cnx.close()
+            print("Connection closed")
