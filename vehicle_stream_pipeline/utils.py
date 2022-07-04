@@ -1,8 +1,12 @@
 import collections
+import json
 
+import geopandas as gpd
 import networkx as nx
 import numpy as np
 import pandas as pd
+import plotly.express as px
+import shapely.geometry
 
 pd.set_option("display.max_columns", None)
 
@@ -11,8 +15,12 @@ def get_geo_cordinates_for_path(df_stops, path):
     stop_latitudes = []
     stop_longitudes = []
     for stop in path:
-        stop_latitudes.append(float(df_stops[df_stops["id"] == stop]["latitude"]))
-        stop_longitudes.append(float(df_stops[df_stops["id"] == stop]["longitude"]))
+        stop_latitudes.append(
+            float(df_stops[df_stops["MoDStop Id"] == stop]["MoDStop Lat"])
+        )
+        stop_longitudes.append(
+            float(df_stops[df_stops["MoDStop Id"] == stop]["MoDStop Long"])
+        )
 
     return (stop_latitudes, stop_longitudes)
 
@@ -23,6 +31,7 @@ def calculate_graph(drives):
         source="pickup_address",
         target="dropoff_address",
         edge_attr="avg_time_to_destination",
+        create_using=nx.DiGraph(),
     )
     return G
 
@@ -56,9 +65,9 @@ def calculate_drives(df, start_date, end_date):
 
 def get_shortest_ride(startpoint, endpoint, graph):
     if startpoint not in graph:
-        return "Not in graph"
+        return ("Not in graph", -1)
     elif endpoint not in graph:
-        return "Not in graph"
+        return ("Not in graph", -1)
     else:
         path = nx.shortest_path(
             graph, source=startpoint, target=endpoint, weight="avg_time_to_destination"
@@ -130,3 +139,91 @@ def add_drone_flights(df_edges, drives, drone_spots=[1008], radius=500):
             "avg_time_to_destination",
         ]
     ]
+
+
+# copied from https://stackoverflow.com/questions/68946831/draw-a-polygon-around-point-in-scattermapbox-using-python
+def poi_poly(
+    df,
+    radius=500,
+    # ,{"lat": 49.3517, "lon": 8.13664}
+    poi={"Longitude": 8.13664, "Latitude": 49.3517},
+    lon_col="MoDStop Long",
+    lat_col="MoDStop Lat",
+    include_radius_poly=False,
+):
+
+    # generate a geopandas data frame of the POI
+    gdfpoi = gpd.GeoDataFrame(
+        geometry=[shapely.geometry.Point(poi["Longitude"], poi["Latitude"])],
+        crs="EPSG:4326",
+    )
+    # extend point to radius defined (a polygon).  Use UTM so that distances work, then back to WSG84
+    gdfpoi = (
+        gdfpoi.to_crs(gdfpoi.estimate_utm_crs())
+        .geometry.buffer(radius)
+        .to_crs("EPSG:4326")
+    )
+
+    gdf = gpd.GeoDataFrame(geometry=gdfpoi)
+
+    # create a polygon around the edges of the markers that are within POI polygon
+    return pd.concat(
+        [
+            gpd.GeoDataFrame(
+                geometry=[
+                    gpd.sjoin(
+                        gdf, gpd.GeoDataFrame(geometry=gdfpoi), how="inner"
+                    ).unary_union.convex_hull
+                ]
+            ),
+            gpd.GeoDataFrame(geometry=gdfpoi if include_radius_poly else None),
+        ]
+    )
+
+
+def create_circles_around_drone_spots(df, radius=500):
+    layers = []
+    for index, row in df.iterrows():
+        current_spot = {
+            "Longitude": row["MoDStop Long"],
+            "Latitude": row["MoDStop Lat"],
+        }
+
+        layers.append(
+            {
+                "source": json.loads(
+                    poi_poly(None, poi=current_spot, radius=radius).to_json()
+                ),
+                "below": "traces",
+                "type": "line",
+                "color": "purple",
+                "line": {"width": 1.5},
+            },
+        )
+
+    return layers
+
+
+def get_route_information(drives, path):
+    times_and_path = []
+    text = ""
+    for i in range(len(path) - 1):
+        current_stop = path[i]
+        next_stop = path[i + 1]
+
+        current_time = round(
+            float(
+                drives[
+                    (drives["pickup_address"] == current_stop)
+                    & (drives["dropoff_address"] == next_stop)
+                ]["avg_time_to_destination"]
+            ),
+            5,
+        )
+
+        times_and_path.append(f"{current_stop} - {next_stop}: {current_time} days")
+
+    nl = "\n"
+    text = f"The shortest path is :{nl}{nl.join(times_and_path)}"
+
+    return text
