@@ -86,12 +86,19 @@ def get_shortest_ride(startpoint, endpoint, graph):
 def get_hotspots(df_edges, drives, n=10):
     graph = calculate_graph(drives)
     df_edges.rename(columns={"Start #": "start_id", "Ende #": "end_id"}, inplace=True)
-    df_edges["Spots"] = df_edges.apply(
+
+    df_edges["include"] = df_edges["Spots"] = df_edges.apply(
+        lambda x: graph.has_edge(x.start_id, x.end_id), axis=1
+    )
+
+    df_edges_filtered = df_edges[df_edges["include"] == True]
+
+    df_edges_filtered["Spots"] = df_edges_filtered.apply(
         lambda x: get_shortest_ride(x.start_id, x.end_id, graph)[0], axis=1
     )
 
-    df_edges = df_edges[df_edges.Spots != "Not in graph"]
-    hotspots = list(df_edges["Spots"])
+    df_edges_filtered = df_edges_filtered[df_edges_filtered.Spots != "Not in graph"]
+    hotspots = list(df_edges_filtered["Spots"])
     hotspots = [x for xs in hotspots for x in xs]
     counter = collections.Counter(hotspots)
     return counter.most_common(n)
@@ -101,8 +108,12 @@ def add_drone_flights(df_edges, drives, drone_spots=[1008], radius=500):
     drone_flights = df_edges.iloc[:, :6]
     drone_flights.drop(["Start Name", "Ende Name", "Route [m]"], axis=1, inplace=True)
     drone_flights.rename(columns={"Luftlinie [m]": "Luftlinie"}, inplace=True)
-    drone_flights = drone_flights[drone_flights.Luftlinie <= radius]
 
+    drone_flights = drone_flights[drone_flights["Luftlinie"] <= radius]
+
+    drone_flights["number_of_drives"] = 1
+    drone_flights["waiting_time"] = 0
+    drone_flights["avg_ride_time"] = (drone_flights.Luftlinie * 0.12) / 60 / 60 / 24
     drone_flights["avg_time_to_destination"] = (
         (drone_flights.Luftlinie * 0.12) / 60 / 60 / 24
     )
@@ -112,13 +123,30 @@ def add_drone_flights(df_edges, drives, drone_spots=[1008], radius=500):
         | (drone_flights["end_id"].isin(drone_spots))
     ]
 
+    drone_flights.rename(
+        columns={"start_id": "pickup_address", "end_id": "dropoff_address"},
+        inplace=True,
+    )
+    drone_flights.drop(["Luftlinie"], axis=1, inplace=True)
+
     drives_w_flights = pd.merge(
         drives,
         drone_flights,
         left_on=["pickup_address", "dropoff_address"],
-        right_on=["start_id", "end_id"],
+        right_on=["pickup_address", "dropoff_address"],
         how="left",
     )
+
+    drives_w_flights["start_end"] = (
+        drives_w_flights["pickup_address"] + drives_w_flights["dropoff_address"]
+    )
+    drone_flights["start_end"] = (
+        drone_flights["pickup_address"] + drone_flights["dropoff_address"]
+    )
+
+    drone_flights_added = drone_flights[
+        ~(drone_flights["start_end"].isin(drives_w_flights["start_end"]))
+    ]
 
     drives_w_flights["avg_time_to_destination"] = np.where(
         (
@@ -129,16 +157,25 @@ def add_drone_flights(df_edges, drives, drone_spots=[1008], radius=500):
         drives_w_flights.avg_time_to_destination_x,
     )
 
-    return drives_w_flights[
+    drives_w_flights = drives_w_flights[
         [
             "pickup_address",
             "dropoff_address",
-            "number_of_drives",
-            "waiting_time",
-            "avg_ride_time",
             "avg_time_to_destination",
         ]
     ]
+
+    drone_flights_added = drone_flights_added[
+        [
+            "pickup_address",
+            "dropoff_address",
+            "avg_time_to_destination",
+        ]
+    ]
+
+    drives_w_flights = pd.concat([drives_w_flights, drone_flights_added])
+
+    return drives_w_flights
 
 
 # copied from https://stackoverflow.com/questions/68946831/draw-a-polygon-around-point-in-scattermapbox-using-python
@@ -204,7 +241,7 @@ def create_circles_around_drone_spots(df, radius=500):
     return layers
 
 
-def get_route_information(drives, path):
+def get_route_information(drives, path, df_stops):
     times_and_path = []
     text = ""
     for i in range(len(path) - 1):
@@ -220,10 +257,24 @@ def get_route_information(drives, path):
             ),
             5,
         )
+        current_name = find_name_for_id(current_stop, df_stops)
+        next_name = find_name_for_id(next_stop, df_stops)
 
-        times_and_path.append(f"{current_stop} - {next_stop}: {current_time} days")
+        times_and_path.append(f"{current_name} - {next_name}: {current_time} days")
 
-    nl = "\n"
+    nl = "\n \n"
     text = f"The shortest path is :{nl}{nl.join(times_and_path)}"
 
     return text
+
+
+def find_name_for_id(id, df_stops):
+    return df_stops[df_stops["MoDStop Id"] == id]["MoDStop Name"].reset_index(
+        drop=True
+    )[0]
+
+
+def find_id_for_name(name, df_stops):
+    return df_stops[df_stops["MoDStop Name"] == name]["MoDStop Id"].reset_index(
+        drop=True
+    )[0]

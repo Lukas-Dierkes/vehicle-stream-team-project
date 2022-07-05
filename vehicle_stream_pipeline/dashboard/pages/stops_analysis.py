@@ -26,8 +26,12 @@ df_edges = pd.read_excel(
     f"{repo}/data/other/MoDstops+Preismodell.xlsx", sheet_name="Liste 2022"
 )
 
+df_edges.rename(columns={"Start #": "start_id", "Ende #": "end_id"}, inplace=True)
+
 rides_df = pd.read_csv(f"{repo}/data/cleaning/data_cleaned.csv")
 rides_df = rides_df[(rides_df["state"] == "completed")]
+rides_df["scheduled_to"] = pd.to_datetime(rides_df["scheduled_to"])
+
 
 controls = dbc.Card(
     [
@@ -81,8 +85,8 @@ controls = dbc.Card(
                             id={
                                 "type": "dynmaic-dpn-pickup_address",
                             },
-                            options=rides_df["pickup_address"],
-                            value=1001,
+                            options=df_stops["MoDStop Name"],
+                            value="Rathaus",
                             clearable=False,
                         ),
                     ]
@@ -94,8 +98,8 @@ controls = dbc.Card(
                             id={
                                 "type": "dynmaic-dpn-dropoff_address",
                             },
-                            options=rides_df["pickup_address"],
-                            value=10001,
+                            options=df_stops["MoDStop Name"],
+                            value="Hauptbahnhof",
                             clearable=False,
                         ),
                     ]
@@ -124,10 +128,14 @@ controls = dbc.Card(
         dbc.Row(
             [
                 html.Label("Enter drone radius (meter)"),
-                dcc.Input(
-                    id="input_number",
-                    type="number",
-                    value=500,
+                html.Div(
+                    [
+                        dcc.Input(
+                            id="input_number",
+                            type="number",
+                            value=500,
+                        )
+                    ]
                 ),
             ]
         ),
@@ -207,8 +215,8 @@ def create_geo_graph(
     start_date,
     end_date,
     drones_activated="0",
-    pickup_address=1001,
-    dropoff_address=10001,
+    pickup_address="Rathaus",
+    dropoff_address="Hauptbahnhof",
     radius=500,
 ):
     global rides_df
@@ -217,59 +225,71 @@ def create_geo_graph(
     route_information = ""
     ridetime = "Average time to destination: 77 days"
 
+    pickup_address = utils.find_id_for_name(pickup_address, df_stops)
+    dropoff_address = utils.find_id_for_name(dropoff_address, df_stops)
+
     start_date = dt.strptime(start_date, "%Y-%m-%d")
     end_date = dt.strptime(end_date, "%Y-%m-%d")
 
-    rides_df = rides_df[(rides_df["state"] == "completed")]
-    rides_df["scheduled_to"] = pd.to_datetime(rides_df["scheduled_to"])
-
-    rides_df = rides_df[
+    rides_df_filterd = rides_df[
         (rides_df["scheduled_to"] > start_date) & (rides_df["scheduled_to"] < end_date)
     ]
-
-    df_edges.rename(columns={"Start #": "start_id", "Ende #": "end_id"}, inplace=True)
 
     # if default parameters None, do nothing else get shortest ride of function call
     if pickup_address is not None or dropoff_address is not None:
 
-        drives = utils.calculate_drives(rides_df, start_date, end_date)
+        drives_without_drones = utils.calculate_drives(
+            rides_df_filterd, start_date, end_date
+        )
 
         # hotspots = utils.get_hotspots(df_edges, aggregated_drives)
         # hotspots = [spot[0] for spot in hotspots]
-        hotspots = [4025, 1009, 11017, 7001, 6002, 12007]
+        hotspots = [1008, 4025, 1005, 1009, 1007, 12007, 7001, 6004, 1010, 11017]
 
-        df_stops_hotspots = df_stops[df_stops["MoDStop Id"].isin(hotspots)]
+        drone_spots = [15011, 13001, 2002, 11007, 4016, 1002, 3020, 9019, 9005]
+
+        df_stops_drones = df_stops[df_stops["MoDStop Id"].isin(drone_spots)]
         if drones_activated == "0":
             layers = []
         else:
-            layers = utils.create_circles_around_drone_spots(df_stops_hotspots, radius)
+            layers = utils.create_circles_around_drone_spots(df_stops_drones, radius)
 
         if drones_activated == "1":
-            drives = utils.add_drone_flights(
-                df_edges, drives, drone_spots=hotspots, radius=radius
+            drives_with_drones = utils.add_drone_flights(
+                df_edges, drives_without_drones, drone_spots=drone_spots, radius=radius
             )
-            graph = utils.calculate_graph(drives)
+
+            graph_with_drones = utils.calculate_graph(drives_with_drones)
+
+            path, shortest_time = utils.get_shortest_ride(
+                pickup_address, dropoff_address, graph_with_drones
+            )
+
+            route_information = utils.get_route_information(
+                drives_with_drones, path, df_stops
+            )
+
         else:
-            graph = utils.calculate_graph(drives)
-
-        path, shortest_time = utils.get_shortest_ride(
-            pickup_address, dropoff_address, graph
-        )
-
-        route_information = utils.get_route_information(drives, path)
+            graph_without_drones = utils.calculate_graph(drives_without_drones)
+            path, shortest_time = utils.get_shortest_ride(
+                pickup_address, dropoff_address, graph_without_drones
+            )
+            route_information = utils.get_route_information(
+                drives_without_drones, path, df_stops
+            )
 
         ridetime = f"Average time to destination: {round(shortest_time, 2)} days"
         # get lat and lon for traces for each stop in the returend list
         latitudes, longitudes = utils.get_geo_cordinates_for_path(df_stops, path)
 
     pickup_counts = (
-        rides_df.groupby("pickup_address")
+        rides_df_filterd.groupby("pickup_address")
         .size()
         .to_frame("number_of_pickups")
         .reset_index()
     )
     dropoff_counts = (
-        rides_df.groupby("dropoff_address")
+        rides_df_filterd.groupby("dropoff_address")
         .size()
         .to_frame("number_of_dropoffs")
         .reset_index()
@@ -285,9 +305,27 @@ def create_geo_graph(
         df_stops_1, dropoff_counts, left_on="MoDStop Id", right_on="dropoff_address"
     ).drop("dropoff_address", axis=1)
 
-    df_stops_1["is_drone_spot"] = np.where(
-        df_stops_1["MoDStop Id"].isin(hotspots), "orange", "blue"
-    )
+    if drones_activated == "1":
+        df_stops_1["is_drone_spot_color"] = np.where(
+            df_stops_1["MoDStop Id"].isin(drone_spots), "purple", "blue"
+        )
+
+        df_stops_1["is_drone_spot_size"] = np.where(
+            (df_stops_1["MoDStop Id"].isin(hotspots))
+            | (df_stops_1["MoDStop Id"].isin(drone_spots)),
+            12,
+            6,
+        )
+
+    else:
+        df_stops_1["is_drone_spot_color"] = np.where(
+            df_stops_1["MoDStop Id"].isin(drone_spots), "blue", "blue"
+        )
+
+        df_stops_1["is_drone_spot_size"] = np.where(
+            (df_stops_1["MoDStop Id"].isin(hotspots)), 12, 6
+        )
+
     fig = go.Figure(
         go.Scattermapbox(
             mode="markers",
@@ -296,7 +334,10 @@ def create_geo_graph(
             # [df_stops_1['MoDStop Name'], df_stops_1['MoDStop Id']]
             hovertext=df_stops_1["MoDStop Name"],
             hoverinfo="text",
-            marker=dict(color=df_stops_1["is_drone_spot"]),
+            marker={
+                "color": df_stops_1["is_drone_spot_color"],
+                "size": df_stops_1["is_drone_spot_size"],
+            },
             showlegend=False,
         )
     )
@@ -306,10 +347,10 @@ def create_geo_graph(
             lon=longitudes,
             lat=latitudes,
             mode="markers+lines",
-            line=dict(width=1, color="red"),
+            line=dict(width=2, color="red"),
             # [df_stops_1['MoDStop Name'], df_stops_1['MoDStop Id']]
-            hovertext=df_stops_1["MoDStop Name"],
-            hoverinfo="text",
+            # hovertext=df_stops_1["MoDStop Name"],
+            hoverinfo="skip",
             opacity=1,
             showlegend=False,
         )
