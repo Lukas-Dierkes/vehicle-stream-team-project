@@ -10,6 +10,8 @@ import pandas as pd
 warnings.filterwarnings("ignore")
 
 # remove duplicates
+
+
 def clean_duplicates(df):
     duplicate_ids = df[df.duplicated(subset=["id"]) & (df["id"].isna() == False)]["id"]
     duplicates = df[df["id"].isin(duplicate_ids)]
@@ -56,6 +58,12 @@ def check_format(df, col_type_dict):
                         == True
                     )
                     | (df[col].isna())
+                    | (
+                        df[col].str.match(
+                            r"[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2} [0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}"
+                        )
+                        == True
+                    )
                 )
             ]
 
@@ -187,7 +195,7 @@ def clean_scheduled_to(df):
     scheduled_to = pd.to_datetime(df["scheduled_to"])
     scheduled_to = scheduled_to.fillna(df["created_at"])
 
-    ##### Hier gibt es 3 rides mit einem scheduled_to Datum, das vor created_at liegt, dadurch wurde automatisch vom System dispatched_at
+    # Hier gibt es 3 rides mit einem scheduled_to Datum, das vor created_at liegt, dadurch wurde automatisch vom System dispatched_at
     # mit 8Min. vor dem scheduled_at gefüllt und muss korrigiert werden und es wurde earliest_pickup_expectation
     # 5 minuten vor scheduled_to gefüllt, das muss auch korrigiert werden (letzters wird vermutlich dann bei clean_earliest.. gefixed)
     # Ansonsten scheint die order korrekt zu sein --> Wird alles später gelöst
@@ -241,7 +249,12 @@ def clean_vehicle_arrived_at(df):
     times = [3600, 60, 1]
     pickup_arrival_time = df["pickup_arrival_time"].fillna("-9")
     pickup_arrival_time = pd.Series(
-        np.where(pickup_arrival_time.str.contains("1899"), "-9", pickup_arrival_time)
+        np.where(
+            (pickup_arrival_time.str.contains("1899"))
+            | (pickup_arrival_time.str.contains("1900")),
+            "-9",
+            pickup_arrival_time,
+        )
     )
 
     pickup_arrival_time = pickup_arrival_time.str[0:8].apply(
@@ -351,7 +364,7 @@ def clean_pickup_at(df):
 
     pickup_at = pd.to_datetime(pickup_at)
 
-    ## Check ordering
+    # Check ordering
     pickup_at = np.where(
         (pickup_at < df["vehicle_arrived_at"]),
         np.where(
