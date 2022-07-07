@@ -58,6 +58,12 @@ def check_format(df, col_type_dict):
                         == True
                     )
                     | (df[col].isna())
+                    | (
+                        df[col].str.match(
+                            r"[0-9]{1,4}-[0-9]{1,2}-[0-9]{1,2} [0-9]{1,2}:[0-9]{1,2}:[0-9]{1,2}"
+                        )
+                        == True
+                    )
                 )
             ]
 
@@ -243,7 +249,12 @@ def clean_vehicle_arrived_at(df):
     times = [3600, 60, 1]
     pickup_arrival_time = df["pickup_arrival_time"].fillna("-9")
     pickup_arrival_time = pd.Series(
-        np.where(pickup_arrival_time.str.contains("1899"), "-9", pickup_arrival_time)
+        np.where(
+            (pickup_arrival_time.str.contains("1899"))
+            | (pickup_arrival_time.str.contains("1900")),
+            "-9",
+            pickup_arrival_time,
+        )
     )
 
     pickup_arrival_time = pickup_arrival_time.str[0:8].apply(
