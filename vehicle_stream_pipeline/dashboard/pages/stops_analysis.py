@@ -131,9 +131,23 @@ controls = dbc.Card(
                 html.Div(
                     [
                         dcc.Input(
-                            id="input_number",
+                            id="input_number_drones",
                             type="number",
                             value=500,
+                        )
+                    ]
+                ),
+            ]
+        ),
+        dbc.Row(
+            [
+                html.Label("Add simulated rides"),
+                html.Div(
+                    [
+                        dcc.Input(
+                            id="input_number_simulated_ride",
+                            type="number",
+                            value=0,
                         )
                     ]
                 ),
@@ -207,7 +221,8 @@ layout = dbc.Container(
             component_id={"type": "dynmaic-dpn-dropoff_address"},
             component_property="value",
         ),
-        Input("input_number", "value"),
+        Input("input_number_drones", "value"),
+        Input("input_number_simulated_ride", "value"),
     ],
 )
 # add parameters with default None
@@ -218,6 +233,7 @@ def create_geo_graph(
     pickup_address="Rathaus",
     dropoff_address="Hauptbahnhof",
     radius=500,
+    sim_rides=0,
 ):
     global rides_df
     global df_edges
@@ -231,10 +247,25 @@ def create_geo_graph(
     start_date = dt.strptime(start_date, "%Y-%m-%d")
     end_date = dt.strptime(end_date, "%Y-%m-%d")
 
-    rides_df_filterd = rides_df[
-        (rides_df["scheduled_to"] > start_date) & (rides_df["scheduled_to"] < end_date)
-    ]
+    ride_month = start_date.month
+    ride_year = start_date.year
 
+    if sim_rides != 0:
+
+        newRides = pd.DataFrame(columns=rides_df.columns)
+        newRides = utils.generateRideSpecs(
+            rides_df, newRides, df_stops, df_edges, sim_rides, 3, 2022
+        )
+
+        newRides["simulated"] = True
+        rides_df["simulated"] = False
+
+        rides_df_1 = pd.concat([newRides, rides_df])
+
+    rides_df_filterd = rides_df_1[
+        (rides_df_1["scheduled_to"] > start_date)
+        & (rides_df_1["scheduled_to"] < end_date)
+    ]
     # if default parameters None, do nothing else get shortest ride of function call
     if pickup_address is not None or dropoff_address is not None:
 
