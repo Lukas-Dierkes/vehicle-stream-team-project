@@ -60,8 +60,8 @@ controls = dbc.Card(
                     initial_visible_month=dt(
                         2021, 12, 1
                     ),  # the month initially presented when the user opens the calendar
-                    start_date=dt(2020, 8, 1).date(),
-                    end_date=dt(2022, 8, 31).date(),
+                    start_date=dt(2022, 2, 1).date(),
+                    end_date=dt(2022, 2, 28).date(),
                     # how selected dates are displayed in the DatePickerRange component.
                     display_format="MMM Do, YY",
                     # how calendar headers are displayed when the calendar is opened.
@@ -238,6 +238,8 @@ def create_geo_graph(
     global rides_df
     global df_edges
     global df_stops
+
+    rides_df_1 = rides_df.copy()
     route_information = ""
     ridetime = "Average time to destination: 77 days"
 
@@ -247,27 +249,45 @@ def create_geo_graph(
     start_date = dt.strptime(start_date, "%Y-%m-%d")
     end_date = dt.strptime(end_date, "%Y-%m-%d")
 
-    ride_month = start_date.month
-    ride_year = start_date.year
+    start_month = start_date.month
+    start_year = start_date.year
+    end_month = end_date.month
+    end_year = end_date.year
+
+    years = list(range(start_year, end_year + 1))
+    months = list(range(start_month, end_month + 1))
 
     if sim_rides != 0:
 
-        newRides = pd.DataFrame(columns=rides_df.columns)
-        newRides = utils.generateRideSpecs(
-            rides_df, newRides, df_stops, df_edges, sim_rides, 3, 2022
-        )
+        drives_w_simulation = pd.DataFrame(columns=rides_df_1.columns)
+        new_rides_all = pd.DataFrame(columns=rides_df_1.columns)
+        for year in years:
+            for month in months:
+                new_rides = utils.generateRideSpecs(
+                    rides_df_1,
+                    drives_w_simulation,
+                    df_stops,
+                    df_edges,
+                    sim_rides,
+                    month,
+                    year,
+                )
+                new_rides_all = pd.concat([new_rides, new_rides_all])
 
-        newRides["simulated"] = True
-        rides_df["simulated"] = False
+        new_rides_all["simulated"] = True
+        rides_df_1["simulated"] = False
 
-        rides_df_1 = pd.concat([newRides, rides_df])
+        new_rides_all = pd.concat([rides_df_1, new_rides_all])
+
     else:
-        rides_df_1 = rides_df
+        new_rides_all = rides_df_1
 
-    rides_df_filterd = rides_df_1[
-        (rides_df_1["scheduled_to"] > start_date)
-        & (rides_df_1["scheduled_to"] < end_date)
+    rides_df_filterd = new_rides_all[
+        (new_rides_all["scheduled_to"] > start_date)
+        & (new_rides_all["scheduled_to"] < end_date)
     ]
+
+    print(len(rides_df_filterd))
     # if default parameters None, do nothing else get shortest ride of function call
     if pickup_address is not None or dropoff_address is not None:
 
