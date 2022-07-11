@@ -261,6 +261,8 @@ def create_geo_graph(
         rides_df["simulated"] = False
 
         rides_df_1 = pd.concat([newRides, rides_df])
+    else:
+        rides_df_1 = rides_df
 
     rides_df_filterd = rides_df_1[
         (rides_df_1["scheduled_to"] > start_date)

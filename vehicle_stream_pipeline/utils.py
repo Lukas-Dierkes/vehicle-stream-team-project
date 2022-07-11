@@ -457,7 +457,7 @@ def generateRoute(oldRides, newRides, ridestops, routes):
     newRideStops["distance"] = newRideStops.merge(
         routes,
         left_on=["pickup_address", "dropoff_address"],
-        right_on=["Start #", "Ende #"],
+        right_on=["start_id", "end_id"],
         how="left",
     )["Route [m]"]
     # calculate shortest_ridetime in seconds with average speed of 30 km/h
