@@ -311,6 +311,13 @@ def create_geo_graph(
                 df_edges, drives_without_drones, drone_spots=drone_spots, radius=radius
             )
 
+            print(
+                drives_with_drones[
+                    (drives_with_drones["pickup_address"] == 1002)
+                    & (drives_with_drones["dropoff_address"] == 1010)
+                ]
+            )
+
             graph_with_drones = utils.calculate_graph(drives_with_drones)
 
             path, shortest_time = utils.get_shortest_ride(

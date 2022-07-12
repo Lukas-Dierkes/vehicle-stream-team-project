@@ -123,6 +123,7 @@ def add_drone_flights(df_edges, drives, drone_spots=[1008], radius=500):
         (drone_flights.Luftlinie * 0.12) / 60 / 60 / 24
     )
 
+    # TODO: find all ids that are in the radius of the drone spot and allow rides for each combination of rides within this points
     drone_flights = drone_flights[
         (drone_flights["start_id"].isin(drone_spots))
         | (drone_flights["end_id"].isin(drone_spots))
@@ -143,10 +144,14 @@ def add_drone_flights(df_edges, drives, drone_spots=[1008], radius=500):
     )
 
     drives_w_flights["start_end"] = (
-        drives_w_flights["pickup_address"] + drives_w_flights["dropoff_address"]
+        drives_w_flights["pickup_address"].astype(str)
+        + "_"
+        + drives_w_flights["dropoff_address"].astype(str)
     )
     drone_flights["start_end"] = (
-        drone_flights["pickup_address"] + drone_flights["dropoff_address"]
+        drone_flights["pickup_address"].astype(str)
+        + "_"
+        + drone_flights["dropoff_address"].astype(str)
     )
 
     drone_flights_added = drone_flights[
