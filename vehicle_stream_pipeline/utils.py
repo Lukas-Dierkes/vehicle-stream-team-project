@@ -61,6 +61,8 @@ def calculate_drives(df, start_date, end_date):
         / 24
     )
 
+    drives["avg_ride_time"].fillna(0.001738, inplace=True)
+
     drives["avg_time_to_destination"] = drives["waiting_time"] + drives["avg_ride_time"]
 
     return drives
@@ -643,9 +645,57 @@ def generateRideSpecs(oldRides, newRides, ridestops, routes, n, month, year):
     newRides["rating"] = generateValues("rating", oldRides, newRides)
     newRides["created_at"] = generateCreatedAt(oldRides, newRides, month, year)
     newRides["scheduled_to"] = generateScheduledTo(oldRides, newRides)
+    # newRides[['pickup_address', 'dropoff_address','distance', 'shortest_ridetime']] = generateRoute(oldRides, newRides, ridestops, routes) # prices are not considered
+    # newRides[['pickup_address', 'dropoff_address','distance', 'shortest_ridetime']] = generateRoute_simple(oldRides, newRides, ridestops, routes) # prices are not considered
     newRides[
         ["pickup_address", "dropoff_address", "distance", "shortest_ridetime"]
-    ] = generateRoute(
+    ] = generateRoute_simple2(
         oldRides, newRides, ridestops, routes
     )  # prices are not considered
+
     return newRides
+
+
+def generateRoute_simple2(oldRides, newRides, ridestops, routes):
+    oldRideStops = oldRides[["pickup_address", "dropoff_address"]]
+    oldRideStops["route"] = (
+        oldRideStops["pickup_address"].astype(str)
+        + "-"
+        + oldRideStops["dropoff_address"].astype(str)
+    )
+
+    dist = (
+        oldRideStops["route"]
+        .value_counts()
+        .rename_axis("route")
+        .reset_index(name="counts")
+    )
+    dist["probabilities"] = dist.counts / dist.counts.sum()
+
+    newRideStops = pd.DataFrame(
+        newRides[["pickup_address", "dropoff_address"]],
+        columns=["pickup_address", "dropoff_address"],
+    )
+    newRideStops["route"] = np.random.choice(
+        dist["route"], p=dist["probabilities"], size=newRides.shape[0]
+    )
+    newRideStops[["pickup_address", "dropoff_address"]] = newRideStops[
+        "route"
+    ].str.split("-", expand=True)
+    newRideStops["pickup_address"] = pd.to_numeric(newRideStops["pickup_address"])
+    newRideStops["dropoff_address"] = pd.to_numeric(newRideStops["dropoff_address"])
+
+    # Extract 'distance' and 'shortest_ridetime' based on generated routes
+    newRideStops["distance"] = newRideStops.merge(
+        routes,
+        left_on=["pickup_address", "dropoff_address"],
+        right_on=["start_id", "end_id"],
+        how="left",
+    )["Route [m]"]
+    # calculate shortest_ridetime in seconds with average speed of 30 km/h
+    newRideStops["shortest_ridetime"] = (
+        1 / (30 / (newRideStops["distance"] / 1000)) * 60 * 60
+    )
+    return newRideStops[
+        ["pickup_address", "dropoff_address", "distance", "shortest_ridetime"]
+    ]
