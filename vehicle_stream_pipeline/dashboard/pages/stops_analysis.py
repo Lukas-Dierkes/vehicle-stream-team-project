@@ -286,7 +286,7 @@ def create_geo_graph(
         & (new_rides_all["scheduled_to"] < end_date)
     ]
 
-    print(len(rides_df_filterd))
+    # print(len(rides_df_filterd))
     # if default parameters None, do nothing else get shortest ride of function call
     if pickup_address is not None or dropoff_address is not None:
 
