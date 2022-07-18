@@ -41,9 +41,6 @@ def calculate_graph(drives):
 
 def calculate_drives(df, start_date, end_date):
     days = (end_date - start_date).days + 1
-    df["scheduled_to"] = pd.to_datetime(df["scheduled_to"])
-    df = df[(df["scheduled_to"] > start_date) & (df["scheduled_to"] < end_date)]
-
     drives = pd.DataFrame(
         df.groupby(["pickup_address", "dropoff_address"], group_keys=False)
         .size()
