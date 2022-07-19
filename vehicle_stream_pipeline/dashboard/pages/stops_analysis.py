@@ -255,23 +255,42 @@ def create_geo_graph(
     end_year = end_date.year
 
     years = list(range(start_year, end_year + 1))
-    months = list(range(start_month, end_month + 1))
+    i = len(years)
+    j = 0
+    months = []
+    years_all = []
+    if i == 1: 
+        months.extend(range(start_month, end_month + 1))
+        years_all.extend([start_year]*(end_month-start_month+1))
+    else: 
+        while i > 1:
+            if j == 0:
+                months.extend(range(start_month, 13))
+                years_all.extend([start_year]*(12-start_month+1))
+                j = j+1
+            else: 
+                months.extend(range(1, 13))
+                years_all.extend([start_year+j]*12)
+            i = i-1
+        months.extend(range(1, end_month +1))
+        years_all.extend([end_year]*(end_month))
+        i = i-1
+    date_range = list(zip(years_all, months))
 
     if sim_rides != 0:
 
         new_rides_all = pd.DataFrame(columns=rides_df_1.columns)
-        for year in years:
-            for month in months:
-                new_rides = utils.generateRideSpecs(
-                    rides_df_1,
-                    new_rides_all,
-                    df_stops,
-                    df_edges,
-                    sim_rides,
-                    month,
-                    year,
-                )
-                new_rides_all = pd.concat([new_rides, new_rides_all])
+        for (year, month) in date_range:
+            new_rides = utils.generateRideSpecs(
+                rides_df_1,
+                new_rides_all,
+                df_stops,
+                df_edges,
+                sim_rides,
+                month,
+                year,
+            )
+            new_rides_all = pd.concat([new_rides, new_rides_all])
 
         new_rides_all["simulated"] = True
         rides_df_1["simulated"] = False
@@ -301,40 +320,29 @@ def create_geo_graph(
         drone_spots = [15011, 13001, 2002, 11007, 4016, 1002, 3020, 9019, 9005]
 
         df_stops_drones = df_stops[df_stops["MoDStop Id"].isin(drone_spots)]
+
         if drones_activated == "0":
             layers = []
-        else:
-            layers = utils.create_circles_around_drone_spots(df_stops_drones, radius)
 
-        if drones_activated == "1":
-            drives_with_drones = utils.add_drone_flights(
-                df_edges, drives_without_drones, drone_spots=drone_spots, radius=radius
-            )
-
-            print(
-                drives_with_drones[
-                    (drives_with_drones["pickup_address"] == 1002)
-                    & (drives_with_drones["dropoff_address"] == 1010)
-                ]
-            )
-
-            graph_with_drones = utils.calculate_graph(drives_with_drones)
-
-            path, shortest_time = utils.get_shortest_ride(
-                pickup_address, dropoff_address, graph_with_drones
-            )
-
-            route_information = utils.get_route_information(
-                drives_with_drones, path, df_stops
-            )
-
-        else:
             graph_without_drones = utils.calculate_graph(drives_without_drones)
             path, shortest_time = utils.get_shortest_ride(
                 pickup_address, dropoff_address, graph_without_drones
             )
             route_information = utils.get_route_information(
                 drives_without_drones, path, df_stops
+            )
+        else:
+            layers = utils.create_circles_around_drone_spots(df_stops_drones, radius)
+           
+            drives_with_drones = utils.add_drone_flights(
+                df_edges, drives_without_drones, drone_spots=drone_spots, radius=radius
+            )
+            graph_with_drones = utils.calculate_graph(drives_with_drones)
+            path, shortest_time = utils.get_shortest_ride(
+                pickup_address, dropoff_address, graph_with_drones
+            )
+            route_information = utils.get_route_information(
+                drives_with_drones, path, df_stops
             )
 
         ridetime = f"Average time to destination: {round(shortest_time, 2)} days"
