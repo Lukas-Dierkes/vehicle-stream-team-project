@@ -283,7 +283,7 @@ def create_geo_graph(
         for (year, month) in date_range:
             new_rides = utils.generateRideSpecs(
                 rides_df_1,
-                new_rides_all,
+                pd.DataFrame(columns=rides_df_1.columns),
                 df_stops,
                 df_edges,
                 sim_rides,
