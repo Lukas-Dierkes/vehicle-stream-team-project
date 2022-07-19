@@ -115,10 +115,8 @@ def add_drone_flights(df_edges, drives, drone_spots=[1008], radius=500):
 
     drone_flights["number_of_drives"] = 1
     drone_flights["waiting_time"] = 0
-    drone_flights["avg_ride_time"] = (drone_flights.Luftlinie * 0.12) / 60 / 60 / 24
-    drone_flights["avg_time_to_destination"] = (
-        (drone_flights.Luftlinie * 0.12) / 60 / 60 / 24
-    )
+    drone_flights["avg_ride_time"] = (drone_flights.Luftlinie / 7) / 60 / 60 / 24
+    drone_flights["avg_time_to_destination"] = drone_flights['avg_ride_time']
 
     # TODO: find all ids that are in the radius of the drone spot and allow rides for each combination of rides within this points
     drone_flights = drone_flights[
