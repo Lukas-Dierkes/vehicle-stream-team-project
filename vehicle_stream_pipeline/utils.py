@@ -86,24 +86,23 @@ def get_shortest_ride(startpoint, endpoint, graph):
 
 
 def get_hotspots(df_edges, drives, n=10):
+
     graph = calculate_graph(drives)
     df_edges.rename(columns={"Start #": "start_id", "Ende #": "end_id"}, inplace=True)
-
     df_edges["include"] = df_edges["Spots"] = df_edges.apply(
         lambda x: graph.has_edge(x.start_id, x.end_id), axis=1
     )
-
     df_edges_filtered = df_edges[df_edges["include"] == True]
-
     df_edges_filtered["Spots"] = df_edges_filtered.apply(
         lambda x: get_shortest_ride(x.start_id, x.end_id, graph)[0], axis=1
     )
-
     df_edges_filtered = df_edges_filtered[df_edges_filtered.Spots != "Not in graph"]
     hotspots = list(df_edges_filtered["Spots"])
     hotspots = [x for xs in hotspots for x in xs]
     counter = collections.Counter(hotspots)
-    return counter.most_common(n)
+    hotspots = [i[0] for i in counter.most_common(10)]
+    
+    return hotspots
 
 
 def add_drone_flights(df_edges, drives, drone_spots=[1008], radius=500):
