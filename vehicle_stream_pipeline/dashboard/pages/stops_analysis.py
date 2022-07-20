@@ -313,9 +313,9 @@ def create_geo_graph(
             rides_df_filterd, start_date, end_date
         )
 
-        # hotspots = utils.get_hotspots(df_edges, aggregated_drives)
+        hotspots = utils.get_hotspots(df_edges, drives_without_drones)
         # hotspots = [spot[0] for spot in hotspots]
-        hotspots = [1008, 4025, 1005, 1009, 1007, 12007, 7001, 6004, 1010, 11017]
+        # hotspots = [1008, 4025, 1005, 1009, 1007, 12007, 7001, 6004, 1010, 11017]
 
         drone_spots = [15011, 13001, 2002, 11007, 4016, 1002, 3020, 9019, 9005]
 
