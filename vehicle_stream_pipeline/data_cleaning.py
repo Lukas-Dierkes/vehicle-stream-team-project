@@ -213,24 +213,25 @@ def clean_dispatched_at(df):
     # Fill missing values of dispatched_at
     dispatched_at = np.where(
         (dispatched_at.isna()) & (df["state"] == "completed"),
-        df["created_at"],
+        df["scheduled_to"] - pd.Timedelta(minutes=8),
         dispatched_at,
     )
 
     # Check correct ordering
     dispatched_at = np.where(
-        (
-            (dispatched_at < df["created_at"])
-            | (dispatched_at >= (df["scheduled_to"] + pd.Timedelta(minutes=9)))
-        )
-        & (df["scheduled_to"] != df["created_at"]),
+        # (
+        #     (dispatched_at < df["created_at"])
+        #     | (dispatched_at >= (df["scheduled_to"] + pd.Timedelta(minutes=9)))
+        # ) &
+        (df["scheduled_to"] != df["created_at"]),
         df["scheduled_to"] - pd.Timedelta(minutes=8),
         np.where(
-            (
-                (dispatched_at < df["created_at"])
-                | (dispatched_at >= (df["scheduled_to"] + pd.Timedelta(minutes=9)))
-            )
-            & (df["scheduled_to"] == df["created_at"]),
+            # (
+            #     (dispatched_at < df["created_at"])
+            #     | (dispatched_at >= (df["scheduled_to"] + pd.Timedelta(minutes=9)))
+            # )
+            # & 
+            (df["scheduled_to"] == df["created_at"]),
             df["scheduled_to"],
             dispatched_at,
         ),
@@ -239,13 +240,8 @@ def clean_dispatched_at(df):
 
     return dispatched_at
 
-
-# Attribute: 'vehicle_arrived_at'
-def clean_vehicle_arrived_at(df):
-    arriving_push = pd.to_datetime(df["arriving_push"])
-    vehicle_arrived_at = pd.to_datetime(df["vehicle_arrived_at"])
-    pickup_at = pd.to_datetime(df["pickup_at"])
-
+def getAvgPickupArrivalTime(df):
+    #get the average pickup arrival time 
     times = [3600, 60, 1]
     pickup_arrival_time = df["pickup_arrival_time"].fillna("-9")
     pickup_arrival_time = pd.Series(
@@ -256,17 +252,23 @@ def clean_vehicle_arrived_at(df):
             pickup_arrival_time,
         )
     )
-
     pickup_arrival_time = pickup_arrival_time.str[0:8].apply(
         lambda row: sum(
             [a * b for a, b in zip(times, map(int, row.split(":"))) if len(row) == 8]
         )
     )
-
     avg_pickup_arrival_time = sum(x for x in pickup_arrival_time if x != -9) / len(
         list(x for x in pickup_arrival_time if x != -9)
     )
     avg_pickup_arrival_time = round(avg_pickup_arrival_time)
+    return avg_pickup_arrival_time
+
+# Attribute: 'vehicle_arrived_at'
+def clean_vehicle_arrived_at(df):
+    arriving_push = pd.to_datetime(df["arriving_push"])
+    vehicle_arrived_at = pd.to_datetime(df["vehicle_arrived_at"])
+    pickup_at = pd.to_datetime(df["pickup_at"])
+    avg_pickup_arrival_time = getAvgPickupArrivalTime(df)
 
     vehicle_arrived_at = np.where(
         (vehicle_arrived_at.isna()) & (df["state"] == "completed"),
@@ -288,15 +290,17 @@ def clean_vehicle_arrived_at(df):
     vehicle_arrived_at = np.where(
         (vehicle_arrived_at < arriving_push)
         | (vehicle_arrived_at + pd.Timedelta(minutes=60) < df["scheduled_to"])
-        | (vehicle_arrived_at - pd.Timedelta(minutes=60) > df["scheduled_to"]),
+        | (vehicle_arrived_at - pd.Timedelta(minutes=60) > df["scheduled_to"])
+        | (vehicle_arrived_at < df['dispatched_at']),
         np.where(
-            arriving_push.isna(),
+            (arriving_push.isna()) | (arriving_push < df['dispatched_at']),
             np.where(
                 (
                     df["dispatched_at"] + pd.Timedelta(seconds=avg_pickup_arrival_time)
                     < df["pickup_at"]
                 )
-                | (df["pickup_at"].isna() == True),
+                | (df["pickup_at"].isna() == True)
+                | (df['pickup_at'] < df['dispatched_at']),
                 df["dispatched_at"] + pd.Timedelta(seconds=avg_pickup_arrival_time),
                 df["pickup_at"],
             ),
