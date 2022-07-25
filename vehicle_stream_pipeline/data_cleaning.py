@@ -273,46 +273,48 @@ def clean_vehicle_arrived_at(df):
     vehicle_arrived_at = np.where(
         (vehicle_arrived_at.isna()) & (df["state"] == "completed"),
         np.where(
-            (
-                df["dispatched_at"] + pd.Timedelta(seconds=avg_pickup_arrival_time)
-                < pickup_at
-            )
-            | (pickup_at.isna() == True),
-            df["dispatched_at"] + pd.Timedelta(seconds=avg_pickup_arrival_time),
-            pickup_at,
-        ),
-        vehicle_arrived_at,
-    )
-
+                (
+                    df["dispatched_at"] + pd.Timedelta(seconds=avg_pickup_arrival_time)
+                    < pickup_at
+                )
+                | (pickup_at.isna() == True),
+                df["dispatched_at"] + pd.Timedelta(seconds=avg_pickup_arrival_time),
+                pickup_at,
+            ),
+            vehicle_arrived_at,
+        )
     vehicle_arrived_at = pd.to_datetime(vehicle_arrived_at)
 
     # Check ordering
     vehicle_arrived_at = np.where(
+        vehicle_arrived_at - df['scheduled_to'] > pd.Timedelta(days=1),
+        df["dispatched_at"] + pd.Timedelta(seconds=avg_pickup_arrival_time),
+        np.where(
         (vehicle_arrived_at < arriving_push)
         | (vehicle_arrived_at + pd.Timedelta(minutes=60) < df["scheduled_to"])
         | (vehicle_arrived_at - pd.Timedelta(minutes=60) > df["scheduled_to"])
         | (vehicle_arrived_at < df['dispatched_at']),
-        np.where(
-            (arriving_push.isna()) | (arriving_push < df['dispatched_at']),
             np.where(
-                (
-                    df["dispatched_at"] + pd.Timedelta(seconds=avg_pickup_arrival_time)
-                    < df["pickup_at"]
-                )
-                | (df["pickup_at"].isna() == True)
-                | (df['pickup_at'] < df['dispatched_at']),
-                df["dispatched_at"] + pd.Timedelta(seconds=avg_pickup_arrival_time),
-                df["pickup_at"],
+                (arriving_push.isna()) | (arriving_push < df['dispatched_at']),
+                np.where(
+                    (
+                        df["dispatched_at"] + pd.Timedelta(seconds=avg_pickup_arrival_time)
+                        < df["pickup_at"]
+                    )
+                    | (df["pickup_at"].isna() == True)
+                    | (df['pickup_at'] < df['dispatched_at']),
+                    df["dispatched_at"] + pd.Timedelta(seconds=avg_pickup_arrival_time),
+                    df["pickup_at"],
+                ),
+                np.where(
+                    ((arriving_push + pd.Timedelta(minutes=3)) < df["pickup_at"]),
+                    arriving_push + pd.Timedelta(minutes=3),
+                    arriving_push,
             ),
-            np.where(
-                ((arriving_push + pd.Timedelta(minutes=3)) < df["pickup_at"]),
-                arriving_push + pd.Timedelta(minutes=3),
-                arriving_push,
             ),
-        ),
-        vehicle_arrived_at,
+            vehicle_arrived_at,
+        )
     )
-
     vehicle_arrived_at = pd.to_datetime(vehicle_arrived_at)
     vehicle_arrived_at = vehicle_arrived_at.floor("s")
 
@@ -325,8 +327,15 @@ def clean_arriving_push(df):
     arriving_push = arriving_push.fillna(
         df["vehicle_arrived_at"] - pd.Timedelta(minutes=3)
     )
-    return arriving_push
+# Check ordering 
+    arriving_push = np.where(
+        arriving_push - df['scheduled_to'] > pd.Timedelta(days=1),
+        df["vehicle_arrived_at"] - pd.Timedelta(minutes=3),
+        arriving_push
+    )
+    arriving_push = pd.to_datetime(arriving_push)
 
+    return arriving_push
 
 # Attribute: 'earliest_pickup_expectation'
 def clean_earlierst_pickup_expectation(df):
@@ -336,8 +345,15 @@ def clean_earlierst_pickup_expectation(df):
         df["dispatched_at"] + pd.Timedelta(minutes=3),
         df["scheduled_to"] - pd.Timedelta(minutes=5),
     )
-    return earlierst_pickup_expectation
+# Check ordering 
+    earlierst_pickup_expectation = np.where(
+        earlierst_pickup_expectation - df['scheduled_to'] > pd.Timedelta(days=1),
+        df["vehicle_arrived_at"] - pd.Timedelta(minutes=3),
+        earlierst_pickup_expectation
+    )
+    earlierst_pickup_expectation = pd.to_datetime(earlierst_pickup_expectation)
 
+    return earlierst_pickup_expectation
 
 # Attribute: 'pickup_at'
 def clean_pickup_at(df):
@@ -370,9 +386,9 @@ def clean_pickup_at(df):
 
     # Check ordering
     pickup_at = np.where(
-        (pickup_at < df["vehicle_arrived_at"]),
+        (pickup_at < df["vehicle_arrived_at"]) | (pickup_at - df['scheduled_to'] > pd.Timedelta(days=1)),
         np.where(
-            df["pickup_eta"].isna() | (df["pickup_eta"] < df["vehicle_arrived_at"]),
+            (df["pickup_eta"].isna()) | (df["pickup_eta"] < df["vehicle_arrived_at"]) | (pickup_at - df['scheduled_to'] > pd.Timedelta(days=1)),
             np.where(
                 (
                     df["vehicle_arrived_at"] + pd.Timedelta(seconds=avg_boarding_time)
@@ -398,8 +414,15 @@ def clean_pickup_eta(df):
 
     pickup_eta = pickup_eta.fillna(df["pickup_at"])
 
-    return pickup_eta
+# Check ordering
+    pickup_eta = np.where(
+        pickup_eta - df['scheduled_to'] > pd.Timedelta(days=1),
+        df['pickup_at'],
+        pickup_eta
+    )
+    pickup_eta = pd.to_datetime(pickup_eta)
 
+    return pickup_eta
 
 # Attribute: 'pickup_first_eta'
 def clean_pickup_first_eta(df):
@@ -407,8 +430,15 @@ def clean_pickup_first_eta(df):
 
     pickup_first_eta = pickup_first_eta.fillna(df["pickup_eta"])
 
-    return pickup_first_eta
+# Check ordering
+    pickup_first_eta = np.where(
+        pickup_first_eta - df['scheduled_to'] > pd.Timedelta(days=1),
+        df['pickup_eta'],
+        pickup_first_eta
+    )
+    pickup_first_eta = pd.to_datetime(pickup_first_eta)
 
+    return pickup_first_eta
 
 # Attribute: 'dropoff_at'
 def clean_dropoff_at(df):
@@ -433,9 +463,9 @@ def clean_dropoff_at(df):
 
     # Check ordering
     dropoff_at = np.where(
-        (dropoff_at < df["pickup_at"]),
+        (dropoff_at < df["pickup_at"]) | (dropoff_at - df['scheduled_to'] > pd.Timedelta(days=1)),
         np.where(
-            df["dropoff_eta"].isna(),
+            (df["dropoff_eta"].isna()) | (dropoff_at - df['scheduled_to'] > pd.Timedelta(days=1)),
             dropoff_at + pd.to_timedelta(shortest_ridetime),
             df["dropoff_eta"],
         ),
@@ -453,8 +483,15 @@ def clean_dropoff_eta(df):
 
     dropoff_eta = dropoff_eta.fillna(df["dropoff_at"])
 
-    return dropoff_eta
+# Check ordering
+    dropoff_eta = np.where(
+        dropoff_eta - df['scheduled_to'] > pd.Timedelta(days=1),
+        df['dropoff_at'],
+        dropoff_eta
+    )
+    dropoff_eta = pd.to_datetime(dropoff_eta)
 
+    return dropoff_eta
 
 # Attribute: 'dropoff_first_eta'
 def clean_dropoff_first_eta(df):
@@ -468,8 +505,16 @@ def clean_dropoff_first_eta(df):
     dropoff_first_eta = dropoff_first_eta.fillna(
         df["pickup_first_eta"] + pd.to_timedelta(shortest_ridetime, unit="S")
     )
-    return dropoff_first_eta
 
+# Check ordering
+    dropoff_first_eta = np.where(
+        dropoff_first_eta - df['scheduled_to'] > pd.Timedelta(days=1),
+        df["pickup_first_eta"] + pd.to_timedelta(shortest_ridetime, unit="S"),
+        dropoff_first_eta
+    )
+    dropoff_first_eta = pd.to_datetime(dropoff_first_eta)
+
+    return dropoff_first_eta
 
 # Attributes: ['pickup_arrival_time', 'arrival_deviation', 'waiting_time', 'boarding_time', 'ride_time', 'trip_time', 'shortest_ridetime', 'delay', 'longer_route_factor']
 def clean_time_periods(df):
@@ -675,6 +720,6 @@ if __name__ == "__main__":
 
     df = data_cleaning(df, df_stops)
 
-    df.to_csv(f"{repo}/data/cleaning/test_{int(time.time())}.csv", index=False)
+    df.to_csv(f"{repo}/data/cleaning/cleaned_{int(time.time())}.csv", index=False)
 
     print("Done!")
