@@ -11,6 +11,7 @@ vehicle_stream_pipeline/connect_to_mysql.py
 vehicle_stream_pipeline/connect_to_sharepoint.py
 vehicle_stream_pipeline/data_cleaning.py
 vehicle_stream_pipeline/hello_world.py
+vehicle_stream_pipeline/oneDriveConnection.py
 vehicle_stream_pipeline/utils.py
 vehicle_stream_pipeline.egg-info/PKG-INFO
 vehicle_stream_pipeline.egg-info/SOURCES.txt
