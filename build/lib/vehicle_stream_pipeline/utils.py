@@ -305,7 +305,7 @@ def getdistribution(data, column, min=None, max=None):
 def generateRoute(oldRides, newRides, ridestops, routes):
     # add route identifier to routes dataframe
     allRoutes = routes[routes['Route [m]'] > 500] # Assumption: real rides are at least 500 m long
-    allRoutes['route'] = allRoutes['Start #'].astype(str) + "-" + allRoutes['Ende #'].astype(str)
+    allRoutes['route'] = allRoutes['start_id'].astype(str) + "-" + allRoutes['end_id'].astype(str)
 
     # based on analysis of rides we distinguish between workdays (Monday till Friday noon) and weekend (Friday noon till Sunday)
     newRideStops = pd.DataFrame(newRides[['created_at', 'scheduled_to', 'pickup_address', 'dropoff_address']], columns=['created_at', 'scheduled_to', 'pickup_address', 'dropoff_address'])
@@ -385,7 +385,7 @@ def generateRoute(oldRides, newRides, ridestops, routes):
     newRideStops['dropoff_address'] = pd.to_numeric(newRideStops['dropoff_address'])
 
     # Extract 'distance' and 'shortest_ridetime' based on generated routes
-    newRideStops['distance'] = newRideStops.merge(routes, left_on=['pickup_address', 'dropoff_address'], right_on=['Start #', 'Ende #'], how='left')['Route [m]']
+    newRideStops['distance'] = newRideStops.merge(routes, left_on=['pickup_address', 'dropoff_address'], right_on=['start_id', 'end_id'], how='left')['Route [m]']
     newRideStops['shortest_ridetime'] = 1/(30 / (newRideStops['distance'] / 1000) )*60*60 # calculate shortest_ridetime in seconds with average speed of 30 km/h
     newRideStops.sort_values(by=['created_at'])
     return newRideStops[['pickup_address', 'dropoff_address','distance', 'shortest_ridetime']]
@@ -765,8 +765,8 @@ def generateDropoff(oldRides, newRides, routes):
                 & (dropoffOld['dropoff_address']==row['dropoff_address'])]['ride_time']) > 0
             else
             # else, use shortest ridetime: 30km/h over distance of the route
-            round((routes[(routes['Start #']==row['pickup_address']) 
-                & (routes['Ende #']==row['dropoff_address'])]['Route [m]'].values[0] * 3600 / 30000) * np.random.uniform(1.0,1.2)),
+            round((routes[(routes['start_id']==row['pickup_address']) 
+                & (routes['end_id']==row['dropoff_address'])]['Route [m]'].values[0] * 3600 / 30000) * np.random.uniform(1.0,1.2)),
             axis=1,
     )
 
