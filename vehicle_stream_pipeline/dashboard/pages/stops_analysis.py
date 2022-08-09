@@ -1,3 +1,4 @@
+import math
 from datetime import datetime as dt
 
 import dash
@@ -39,8 +40,8 @@ end_date = max(rides_df["scheduled_to"])
 date_range = utils.get_date_range(start_date, end_date)
 data_range_len = len(date_range)
 
-total_sim_rides = 500  # will be filtered later
-sim_rides_count = int(total_sim_rides / data_range_len)
+total_sim_rides = 10000  # will be filtered later
+sim_rides_count = math.ceil(total_sim_rides / data_range_len)
 sim_rides_all = pd.DataFrame(columns=rides_df.columns)
 for (year, month) in date_range:
     sim_rides = utils.generateRideSpecs(
