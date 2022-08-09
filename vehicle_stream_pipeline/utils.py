@@ -86,7 +86,6 @@ def get_shortest_ride(startpoint, endpoint, graph):
 
 
 def get_hotspots(df_edges, drives, n=10):
-
     graph = calculate_graph(drives)
     df_edges.rename(columns={"Start #": "start_id", "Ende #": "end_id"}, inplace=True)
     df_edges["include"] = df_edges["Spots"] = df_edges.apply(
