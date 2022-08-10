@@ -313,16 +313,23 @@ def clean_vehicle_arrived_at(df):
 
 # Attribute: 'arriving_push'
 def clean_arriving_push(df):
-    df["arriving_push"] = pd.to_datetime(df["arriving_push"])
+    arriving_push = pd.to_datetime(df["arriving_push"])
+    
     arriving_push = df["arriving_push"].fillna(
         df["vehicle_arrived_at"] - pd.Timedelta(minutes=3)
     )
+
     # Check ordering 
     arriving_push = np.where(
-        # check if it is not too far away from scheduled_to 
-        arriving_push - df['scheduled_to'] > pd.Timedelta(days=0.8),
+        # check if it is not too far away from scheduled_to or check if arriving_push is not more than 15 minutes before scheduled_to
+        (arriving_push - df['scheduled_to'] > pd.Timedelta(minutes=120)) | ((df['scheduled_to'] - arriving_push) > pd.Timedelta(minutes=30)),
         df["vehicle_arrived_at"] - pd.Timedelta(minutes=3),
-        arriving_push
+        # arrriving_push is before created_at than use scheduled_to
+        np.where(
+            (arriving_push < df['created_at']),
+            df['scheduled_to'],
+            arriving_push
+        )
     )
     arriving_push = pd.to_datetime(arriving_push)
 
@@ -430,7 +437,8 @@ def clean_pickup_first_eta(df):
 
     # Check ordering
     pickup_first_eta = np.where(
-        (pickup_first_eta < df['dispatched_at']) | (pickup_first_eta - df['scheduled_to'] > pd.Timedelta(days=1)),
+        # if pickup_first_eta not at same day than scheduled_to and case that ride takes place at midnight 
+        (pickup_first_eta < df['dispatched_at']) | ((pickup_first_eta.dt.day != df['scheduled_to'].dt.day) & (pickup_first_eta - df['scheduled_to'] > pd.Timedelta(minutes=80))),
         df['pickup_eta'],
         pickup_first_eta
     )
@@ -502,7 +510,8 @@ def clean_dropoff_first_eta(df):
 
     # Check ordering
     dropoff_first_eta = np.where(
-        (dropoff_first_eta < df['dispatched_at']) | (dropoff_first_eta - df['scheduled_to'] > pd.Timedelta(days=1)),
+        # if dropoff_first_eta not at same day than scheduled_to and case that ride takes place at midnight 
+        (dropoff_first_eta < df['dispatched_at']) | ((dropoff_first_eta.dt.day != df['scheduled_to'].dt.day) & (dropoff_first_eta - df['scheduled_to'] > pd.Timedelta(minutes=80))),
         df["pickup_first_eta"] + pd.to_timedelta(shortest_ridetime, unit="s"),
         dropoff_first_eta
     )
@@ -714,6 +723,6 @@ if __name__ == "__main__":
 
     df = data_cleaning(df, df_stops)
 
-    df.to_csv(f"{repo}/data/cleaning/cleaned_{int(time.time())}.csv", index=False)
+    df.to_csv(f"{repo}/data/cleaning/data_cleaned.csv", index=False)
 
     print("Done!")
