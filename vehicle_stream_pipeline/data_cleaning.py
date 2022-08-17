@@ -709,6 +709,88 @@ def data_cleaning(df, df_stops):
     df["rating"] = clean_rating(df)
     return df
 
+def data_check(df):
+    # check the most important orderings and calculations - move incorrect entities into df_incorrect 
+    df = df[df['state']=='completed']
+
+    df[['created_at', 'scheduled_to', 'dispatched_at', 'arriving_push', 'vehicle_arrived_at', 'earliest_pickup_expectation', 'pickup_first_eta', 'pickup_eta', 'pickup_at', 'dropoff_first_eta', 'dropoff_eta', 'dropoff_at', 'updated_at']] = df[['created_at', 'scheduled_to', 'dispatched_at', 'arriving_push', 'vehicle_arrived_at', 'earliest_pickup_expectation', 'pickup_first_eta', 'pickup_eta', 'pickup_at', 'dropoff_first_eta', 'dropoff_eta', 'dropoff_at', 'updated_at']].apply(pd.to_datetime)
+    
+    # filter wrong ordering: created_at
+    df_incorrect = df.loc[(df.created_at > df.scheduled_to) | (df.created_at > df.dispatched_at)
+    | (df.created_at > df.arriving_push) | (df.created_at > df.vehicle_arrived_at)
+    | (df.created_at > df.earliest_pickup_expectation) | (df.created_at > df.pickup_first_eta)
+    | (df.created_at > df.pickup_eta) | (df.created_at > df.pickup_at)
+    | (df.created_at > df.dropoff_first_eta) | (df.created_at > df.dropoff_eta)
+    | (df.created_at > df.dropoff_at) | (df.created_at > df.updated_at)]
+
+    # filter wrong ordering: scheduled_to
+    df_incorrect = df.loc[(df.scheduled_to < df.dispatched_at)]
+    
+    # filter all timestamps that are not on the same date than scheduled_to 
+    # automatically validated if all other timestamps are on the same day  
+    df_incorrect = df.loc[(df.dispatched_at.dt.day != df.scheduled_to.dt.day) | (df.arriving_push.dt.day != df.scheduled_to.dt.day) 
+    | (df.vehicle_arrived_at.dt.day != df.scheduled_to.dt.day) | (df.earliest_pickup_expectation.dt.day != df.scheduled_to.dt.day) 
+    | (df.pickup_first_eta.dt.day != df.scheduled_to.dt.day) | (df.pickup_eta.dt.day != df.scheduled_to.dt.day) | (df.pickup_at.dt.day != df.scheduled_to.dt.day) 
+    | (df.dropoff_first_eta.dt.day != df.scheduled_to.dt.day) | (df.dropoff_eta.dt.day != df.scheduled_to.dt.day) | (df.dropoff_at.dt.day != df.scheduled_to.dt.day)]
+    
+    # filter cases where the timestamps are not on the same day because they were at midnight  
+    # use dropoff_at for comparison (should include all other timestamps)
+    df_incorrect = df_incorrect.loc[(df_incorrect.dropoff_at - df_incorrect.scheduled_to > pd.Timedelta(minutes=60))]
+    
+    # filter wrong ordering: dispatched_at
+    df_incorrect = df.loc[ (df.dispatched_at > df.vehicle_arrived_at) | (df.dispatched_at > df.earliest_pickup_expectation) | (df.dispatched_at > df.pickup_first_eta)
+    | (df.dispatched_at > df.pickup_eta) | (df.dispatched_at > df.pickup_at) | (df.dispatched_at > df.dropoff_first_eta) | (df.dispatched_at > df.dropoff_eta)
+    | (df.dispatched_at > df.dropoff_at)]
+    
+    # filter wrong ordering: arriving_push
+    df_incorrect = df.loc[(df.arriving_push > df.vehicle_arrived_at) | (df.arriving_push > df.pickup_at) | (df.arriving_push > df.dropoff_at)]
+    
+    # filter wrong ordering: vehicle_arrived_at
+    df_incorrect = df.loc[(df.vehicle_arrived_at > df.pickup_at) | (df.vehicle_arrived_at > df.dropoff_at)]
+
+    # filter wrong ordering: pickup_at
+    df_incorrect = df.loc[(df.pickup_at > df.dropoff_at)]
+    
+    # test the calculations
+    # pickup_arrival_time
+    df_incorrect = df.loc[((df.vehicle_arrived_at - df.dispatched_at).dt.seconds != df.pickup_arrival_time) 
+    # arrival_deviation
+    | (((df.vehicle_arrived_at - df.arriving_push).dt.seconds -180)!= df.arrival_deviation)
+    # waiting_time
+    | (((df.vehicle_arrived_at - df.earliest_pickup_expectation).dt.seconds != df.waiting_time) & (df.vehicle_arrived_at>df.earliest_pickup_expectation))
+    # filter cases where the values where negative
+    | (((df.vehicle_arrived_at - df.earliest_pickup_expectation).dt.seconds - 86400 != df.waiting_time) & (df.vehicle_arrived_at<df.earliest_pickup_expectation))
+    # boarding_time
+    | ((df.pickup_at - df.vehicle_arrived_at).dt.seconds != df.boarding_time)
+    # ride_time
+    | ((df.dropoff_at - df.pickup_at).dt.seconds != df.ride_time)
+    # trip_time 
+    | ((df.ride_time + df.waiting_time) != df.trip_time)
+    # delay
+    | ((df.trip_time - df.shortest_ridetime) != df.delay)
+    ] 
+    
+    # filiter the biggest outliers 
+    # pickup_arrival_time
+    df_incorrect = df.loc[(df.pickup_arrival_time >= 10000) 
+    # arrival_deviation
+    | (df.arrival_deviation >= 2000)
+    # waiting_time
+    | (df.waiting_time >= 3000) 
+    # boarding_time
+    | (df.boarding_time >= 2000) 
+    # ride_time
+    | (df.ride_time >= 5000) 
+    # trip_time 
+    | (df.trip_time >= 5000) 
+    # delay
+    | (df.delay >= 5000) 
+    ] 
+    
+    # remove incorrect entities and outliers from the cleaned_df
+    df = pd.merge(df, df_incorrect, indicator=True, how='outer').query('_merge=="left_only"').drop('_merge', axis=1)
+ 
+    return (df, df_incorrect)
 
 if __name__ == "__main__":
     repo = git.Repo(".", search_parent_directories=True).git.rev_parse(
@@ -722,6 +804,13 @@ if __name__ == "__main__":
     df = clean_duplicates(df)
 
     df = data_cleaning(df, df_stops)
+
+    print('check cleaned data')
+    df, df_incorrect = data_check(df)
+    if df_incorrect.empty == False:
+        df_incorrect.to_excel(
+            f"{repo}/data/cleaning/incorrect{int(time.time())}.xlsx"
+        )
 
     df.to_csv(f"{repo}/data/cleaning/data_cleaned.csv", index=False)
 
