@@ -885,7 +885,7 @@ def generatePickup(oldRides, newRides):
     # distribution of the time between pickup_at and pickup_first_eta
     pickupOld["deviation_of_pickup_first_eta"] = pickupOld.apply(
         lambda row: (
-            (row["pickup_first_eta"] - row["pickup_at"]).round(freq="s")
+            (row["pickup_first_eta"] - row["pickup_eta"]).round(freq="s")
         ).total_seconds(),
         axis=1,
     )
@@ -894,7 +894,7 @@ def generatePickup(oldRides, newRides):
     # determine timestamp 'pickup_first_eta'
     pickupNew["pickup_first_eta"] = pickupNew.apply(
         lambda row: (
-            row["pickup_at"]
+            row["pickup_eta"]
             + pd.Timedelta(dist.rvs(1)[0], unit="seconds").round(freq="s")
         ),
         axis=1,
@@ -916,11 +916,11 @@ def generatePickup(oldRides, newRides):
     )
 
     # check that pickup_first_eta before pickup_eta
-    pickupNew["pickup_first_eta"] = np.where(
-        pickupNew["pickup_first_eta"] > pickupNew["pickup_eta"],
-        pickupNew["pickup_eta"],
-        pickupNew["pickup_first_eta"],
-    )
+    # pickupNew["pickup_first_eta"] = np.where(
+    #     pickupNew["pickup_first_eta"] > pickupNew["pickup_eta"],
+    #     pickupNew["pickup_eta"],
+    #     pickupNew["pickup_first_eta"],
+    # )
 
     ##### generate arriving_push
     # distribution of the time between arriving_push and vehicle_arrived_at
@@ -943,12 +943,22 @@ def generatePickup(oldRides, newRides):
 
     # check that arriving_push is after dispatched_at
     pickupNew["arriving_push"] = np.where(
-        pickupNew["dispatched_at"] > pickupNew["arriving_push"],
+        (pickupNew["dispatched_at"] > pickupNew["arriving_push"])
+        | (pickupNew["arriving_push"] > pickupNew["vehicle_arrived_at"]),
         pickupNew["dispatched_at"]
-        + (pickupNew["pickup_eta"] - pickupNew["dispatched_at"])
-        * np.random.uniform(0.1, 0.9),
+        + (
+            (pickupNew["vehicle_arrived_at"] - pickupNew["dispatched_at"])
+            * np.random.uniform(0.1, 0.9)
+        ),
         pickupNew["arriving_push"],
     )
+
+    # # check that arriving_push before VehicleArrivedAt
+    # pickupNew["arriving_push"] = np.where(
+    #     pickupNew["arriving_push"] > pickupNew["vehicle_arrived_at"],
+    #     (pickupNew["vehicle_arrived_at"] - pd.Timedelta(minutes=3)),
+    #     pickupNew["arriving_push"],
+    # )
 
     return pickupNew[
         [
