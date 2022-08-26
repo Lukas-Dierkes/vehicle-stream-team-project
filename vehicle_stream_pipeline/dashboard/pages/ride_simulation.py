@@ -81,6 +81,7 @@ color_rides_sim_s = "lightsteelblue"
 color_rides_sim_s_2 = "cornflowerblue"
 color_rides_sim_l = "navy"
 color_sequence = [color_rides, color_rides_sim_s, color_rides_sim_l]
+color_sequence_2 = [color_rides_sim_s, color_rides]
 
 
 layout = dbc.Container(
@@ -88,7 +89,9 @@ layout = dbc.Container(
         html.H1("Ride Simulation", style={"textAlign": "center"}),
         html.Div(
             [
-                dbc.Button("Update All Graphs", id="update_all", color="primary"),
+                dbc.Button(
+                    "Update All Graphs", id="update_all", n_clicks=0, color="primary"
+                ),
             ],
             className="d-grid gap-2 col-6 mx-auto",
         ),
@@ -200,7 +203,7 @@ layout = dbc.Container(
         Output("density_week", "figure"),
     ],
     [
-        Input("update_all", "button"),
+        Input("update_all", "n_clicks"),
     ],
 )
 def update_charts(button):
@@ -225,7 +228,7 @@ def update_charts(button):
     fig_routes_pie_1 = px.pie(
         values=values1,
         names=labels1,
-        color_discrete_sequence=color_sequence,
+        color_discrete_sequence=color_sequence_2,
         title="Route selection 9k simulated rides",
     )
     fig_routes_pie_2 = px.pie(
@@ -297,22 +300,30 @@ def update_charts(button):
     )
 
     # figures for distplots of rel_frequency over day and week
+
+    group_labels = ["Original Rides", "Simulated Rides small", "Simulated Rides large"]
+
+    current_attribute = "hour"
     hist_data = [
         dist_df[current_attribute],
         dist_df_sim_s[current_attribute],
         dist_df_sim_l[current_attribute],
     ]
-    group_labels = ["Original Rides", "Simulated Rides small", "Simulated Rides large"]
-
-    current_attribute = "hour"
     fig_dist_hour = ff.create_distplot(
         hist_data, group_labels, colors=color_sequence, show_rug=False
     )
+    fig_dist_hour.update_layout(title="Rides distribution over day")
 
     current_attribute = "day_of_week"
+    hist_data = [
+        dist_df[current_attribute],
+        dist_df_sim_s[current_attribute],
+        dist_df_sim_l[current_attribute],
+    ]
     fig_dist_week = ff.create_distplot(
         hist_data, group_labels, colors=color_sequence, show_rug=False
     )
+    fig_dist_week.update_layout(title="Rides distribution over week")
 
     return (
         fig_routes_bar,
