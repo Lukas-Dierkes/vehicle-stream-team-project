@@ -2,9 +2,11 @@ import time
 import warnings
 from datetime import datetime as dt
 from re import M
+
 import git
 import numpy as np
 import pandas as pd
+from numpy import NaN
 
 warnings.filterwarnings("ignore")
 
@@ -191,119 +193,132 @@ def clean_created_at(df):
 
 # Attribute: 'scheduled_to'
 def clean_scheduled_to(df):
-    # clean scheduled_to 
-    df['scheduled_to'] = pd.to_datetime(df["scheduled_to"])
-    df['scheduled_to'] = df['scheduled_to'].fillna(df["created_at"])
+    # clean scheduled_to
+    df["scheduled_to"] = pd.to_datetime(df["scheduled_to"])
+    df["scheduled_to"] = df["scheduled_to"].fillna(df["created_at"])
 
     # filter that scheduled_to is not before created_at
-    df['scheduled_to'] = np.where(
-        df['scheduled_to'] < df["created_at"], df["created_at"], df['scheduled_to']
+    df["scheduled_to"] = np.where(
+        df["scheduled_to"] < df["created_at"], df["created_at"], df["scheduled_to"]
     )
-    scheduled_to = pd.to_datetime(df['scheduled_to'])
+    scheduled_to = pd.to_datetime(df["scheduled_to"])
     return scheduled_to
 
 
 # Attribute: 'dispatched_at'
 def clean_dispatched_at(df):
     # Cast to correct dtype
-    df['dispatched_at'] = pd.to_datetime(df["dispatched_at"])
-    df['scheduled_to'] = pd.to_datetime(df['scheduled_to'])
-    # Fill values of dispatched_at which are completed and scheduled rides with scheduled-8 Min else with created_at 
-    df['dispatched_at'] = np.where(
-        (df["state"] == "completed") & (df['scheduled_to'] != df['created_at']),
+    df["dispatched_at"] = pd.to_datetime(df["dispatched_at"])
+    df["scheduled_to"] = pd.to_datetime(df["scheduled_to"])
+    # Fill values of dispatched_at which are completed and scheduled rides with scheduled-8 Min else with created_at
+    df["dispatched_at"] = np.where(
+        (df["state"] == "completed") & (df["scheduled_to"] != df["created_at"]),
         # Clear cases where scheduled_to - 8Min is smaller than created_at else dispatched_at would be smaller than created_at
         np.where(
-            (df['scheduled_to'] - pd.Timedelta(minutes=8) < df['created_at']),
-            df['created_at'],
-            df['scheduled_to'] - pd.Timedelta(minutes=8),
+            (df["scheduled_to"] - pd.Timedelta(minutes=8) < df["created_at"]),
+            df["created_at"],
+            df["scheduled_to"] - pd.Timedelta(minutes=8),
         ),
         np.where(
-            (df["state"] == "completed") & (df['scheduled_to'] == df['created_at']),
-            df['created_at'],
-            df['dispatched_at']
-        )
+            (df["state"] == "completed") & (df["scheduled_to"] == df["created_at"]),
+            df["created_at"],
+            df["dispatched_at"],
+        ),
     )
-    dispatched_at = pd.to_datetime(df['dispatched_at'])
+    dispatched_at = pd.to_datetime(df["dispatched_at"])
 
     return dispatched_at
 
+
 def getAvgPickupArrivalTime(df):
-    # get the average pickup arrival time 
+    # get the average pickup arrival time
     times = [3600, 60, 1]
-    df['pickup_arrival_time'] = pd.to_datetime(df.pickup_arrival_time)
+    df["pickup_arrival_time"] = pd.to_datetime(df.pickup_arrival_time)
     # get all values in one format
-    df['pickup_arrival_time'] = df['pickup_arrival_time'].dt.strftime('%H:%M:%S')
+    df["pickup_arrival_time"] = df["pickup_arrival_time"].dt.strftime("%H:%M:%S")
     # replace all values with -9 if pickup_arrival_time is NaN or if it is bigger than 3 hours (assumption)
-    df['pickup_arrival_time'] = np.where(
-        (pd.to_timedelta(df['pickup_arrival_time']) > pd.Timedelta(hours=3)) | (df['pickup_arrival_time'].isna()),
+    df["pickup_arrival_time"] = np.where(
+        (pd.to_timedelta(df["pickup_arrival_time"]) > pd.Timedelta(hours=3))
+        | (df["pickup_arrival_time"].isna()),
         "-9",
-        df['pickup_arrival_time'],
+        df["pickup_arrival_time"],
     )
-    df['pickup_arrival_time'] = df['pickup_arrival_time'].str[0:8].apply(
-        lambda row: sum(
-            [a * b for a, b in zip(times, map(int, row.split(":"))) if len(row) == 8]
+    df["pickup_arrival_time"] = (
+        df["pickup_arrival_time"]
+        .str[0:8]
+        .apply(
+            lambda row: sum(
+                [
+                    a * b
+                    for a, b in zip(times, map(int, row.split(":")))
+                    if len(row) == 8
+                ]
+            )
         )
     )
-    avg_pickup_arrival_time = sum(x for x in df['pickup_arrival_time'] if x != -9) / len(
-        list(x for x in df['pickup_arrival_time'] if x != -9)
-    )
+    avg_pickup_arrival_time = sum(
+        x for x in df["pickup_arrival_time"] if x != -9
+    ) / len(list(x for x in df["pickup_arrival_time"] if x != -9))
     avg_pickup_arrival_time = round(avg_pickup_arrival_time)
     return avg_pickup_arrival_time
+
 
 # Attribute: 'vehicle_arrived_at'
 def clean_vehicle_arrived_at(df):
     df["arriving_push"] = pd.to_datetime(df["arriving_push"])
-    vehicle_arrived_at = pd.to_datetime(df['vehicle_arrived_at'])
+    vehicle_arrived_at = pd.to_datetime(df["vehicle_arrived_at"])
     df["pickup_at"] = pd.to_datetime(df["pickup_at"])
     avg_pickup_arrival_time = getAvgPickupArrivalTime(df)
     # fill the NaN values with dispatched_at plus the average pickup arrival time since pickup_arrival_time = vehicle_arrivd_at - dispatched_at
     vehicle_arrived_at = np.where(
         (vehicle_arrived_at.isna()) & (df["state"] == "completed"),
-        # only if dispatched_at + average pickup time is smaller than pickup_at we add the average time to dispatched_at else we take the pickup_at 
+        # only if dispatched_at + average pickup time is smaller than pickup_at we add the average time to dispatched_at else we take the pickup_at
         np.where(
-                (
-                    df["dispatched_at"] + pd.Timedelta(seconds=avg_pickup_arrival_time)
-                    < df["pickup_at"]
-                )
-                | (df["pickup_at"].isna() == True),
-                df["dispatched_at"] + pd.Timedelta(seconds=avg_pickup_arrival_time),
-                df["pickup_at"],
-            ),
-            vehicle_arrived_at,
-        )
+            (
+                df["dispatched_at"] + pd.Timedelta(seconds=avg_pickup_arrival_time)
+                < df["pickup_at"]
+            )
+            | (df["pickup_at"].isna() == True),
+            df["dispatched_at"] + pd.Timedelta(seconds=avg_pickup_arrival_time),
+            df["pickup_at"],
+        ),
+        vehicle_arrived_at,
+    )
     vehicle_arrived_at = pd.to_datetime(vehicle_arrived_at)
 
     # vehicle_arrived_at must take place on the same date as scheduled_to
     vehicle_arrived_at = np.where(
-        vehicle_arrived_at - df['scheduled_to'] > pd.Timedelta(days=1),
+        vehicle_arrived_at - df["scheduled_to"] > pd.Timedelta(days=1),
         df["dispatched_at"] + pd.Timedelta(seconds=avg_pickup_arrival_time),
-        # assumption that vehicle arrives in at least 1 hour from the actual schedule time 
+        # assumption that vehicle arrives in at least 1 hour from the actual schedule time
         np.where(
-        (vehicle_arrived_at < df["arriving_push"])
-        | (vehicle_arrived_at + pd.Timedelta(minutes=60) < df["scheduled_to"])
-        | (vehicle_arrived_at - pd.Timedelta(minutes=60) > df["scheduled_to"])
-        | (vehicle_arrived_at < df['dispatched_at']),
+            (vehicle_arrived_at < df["arriving_push"])
+            | (vehicle_arrived_at + pd.Timedelta(minutes=60) < df["scheduled_to"])
+            | (vehicle_arrived_at - pd.Timedelta(minutes=60) > df["scheduled_to"])
+            | (vehicle_arrived_at < df["dispatched_at"]),
             np.where(
-                (df["arriving_push"].isna()) | (df["arriving_push"] < df['dispatched_at']),
+                (df["arriving_push"].isna())
+                | (df["arriving_push"] < df["dispatched_at"]),
                 np.where(
                     (
-                        df["dispatched_at"] + pd.Timedelta(seconds=avg_pickup_arrival_time)
+                        df["dispatched_at"]
+                        + pd.Timedelta(seconds=avg_pickup_arrival_time)
                         < df["pickup_at"]
                     )
                     | (df["pickup_at"].isna() == True)
-                    | (df['pickup_at'] < df['dispatched_at']),
+                    | (df["pickup_at"] < df["dispatched_at"]),
                     df["dispatched_at"] + pd.Timedelta(seconds=avg_pickup_arrival_time),
                     df["pickup_at"],
                 ),
-                # arriving push is the assumption from the system that the pickup will be arrived in less than 3 minutes  
+                # arriving push is the assumption from the system that the pickup will be arrived in less than 3 minutes
                 np.where(
                     ((df["arriving_push"] + pd.Timedelta(minutes=3)) < df["pickup_at"]),
                     df["arriving_push"] + pd.Timedelta(minutes=3),
                     df["arriving_push"],
-            ),
+                ),
             ),
             vehicle_arrived_at,
-        )
+        ),
     )
     vehicle_arrived_at = pd.to_datetime(vehicle_arrived_at)
     vehicle_arrived_at = vehicle_arrived_at.floor("s")
@@ -314,26 +329,24 @@ def clean_vehicle_arrived_at(df):
 # Attribute: 'arriving_push'
 def clean_arriving_push(df):
     arriving_push = pd.to_datetime(df["arriving_push"])
-    
+
     arriving_push = df["arriving_push"].fillna(
         df["vehicle_arrived_at"] - pd.Timedelta(minutes=3)
     )
 
-    # Check ordering 
+    # Check ordering
     arriving_push = np.where(
         # check if it is not too far away from scheduled_to or check if arriving_push is not more than 15 minutes before scheduled_to
-        (arriving_push - df['scheduled_to'] > pd.Timedelta(minutes=120)) | ((df['scheduled_to'] - arriving_push) > pd.Timedelta(minutes=30)),
+        (arriving_push - df["scheduled_to"] > pd.Timedelta(minutes=120))
+        | ((df["scheduled_to"] - arriving_push) > pd.Timedelta(minutes=30)),
         df["vehicle_arrived_at"] - pd.Timedelta(minutes=3),
         # arrriving_push is before created_at than use scheduled_to
-        np.where(
-            (arriving_push < df['created_at']),
-            df['scheduled_to'],
-            arriving_push
-        )
+        np.where((arriving_push < df["created_at"]), df["scheduled_to"], arriving_push),
     )
     arriving_push = pd.to_datetime(arriving_push)
 
     return arriving_push
+
 
 # Attribute: 'earliest_pickup_expectation'
 def clean_earlierst_pickup_expectation(df):
@@ -341,20 +354,22 @@ def clean_earlierst_pickup_expectation(df):
     # earliest pickup expectation is defined as dispatched + 3 Minuten
     earlierst_pickup_expectation = np.where(
         # case that it is not a scheduled ride or that scheduled - 8Min < created_at
-        (df["scheduled_to"] == df["created_at"]) | (df['scheduled_to'] - pd.Timedelta(minutes=8) < df['created_at']),
+        (df["scheduled_to"] == df["created_at"])
+        | (df["scheduled_to"] - pd.Timedelta(minutes=8) < df["created_at"]),
         df["dispatched_at"] + pd.Timedelta(minutes=3),
-        # case that it is a scheduled ride 
-        df["scheduled_to"] - pd.Timedelta(minutes=5)
+        # case that it is a scheduled ride
+        df["scheduled_to"] - pd.Timedelta(minutes=5),
     )
-    # Check ordering 
+    # Check ordering
     earlierst_pickup_expectation = np.where(
-        earlierst_pickup_expectation - df['scheduled_to'] > pd.Timedelta(days=1),
+        earlierst_pickup_expectation - df["scheduled_to"] > pd.Timedelta(days=1),
         df["vehicle_arrived_at"] - pd.Timedelta(minutes=3),
-        earlierst_pickup_expectation
+        earlierst_pickup_expectation,
     )
     earlierst_pickup_expectation = pd.to_datetime(earlierst_pickup_expectation)
 
     return earlierst_pickup_expectation
+
 
 # Attribute: 'pickup_at'
 def clean_pickup_at(df):
@@ -378,12 +393,13 @@ def clean_pickup_at(df):
     # fill NaN values
     pickup_at = np.where(
         (pickup_at.isna()) & (df["state"] == "completed"),
-        # if pickup_eta is Nan or pickup_eta is too far away from scheduled_to than fill the values with vehicle_arrived_at + avg boarding time else put pickup_eta as value 
+        # if pickup_eta is Nan or pickup_eta is too far away from scheduled_to than fill the values with vehicle_arrived_at + avg boarding time else put pickup_eta as value
         np.where(
-            (df["pickup_eta"].isna()) | (pickup_eta - df['scheduled_to'] >= pd.Timedelta(days=1)),
+            (df["pickup_eta"].isna())
+            | (pickup_eta - df["scheduled_to"] >= pd.Timedelta(days=1)),
             df["vehicle_arrived_at"] + pd.Timedelta(seconds=avg_boarding_time),
             df["pickup_eta"],
-            ),
+        ),
         pickup_at,
     )
     pickup_at = pd.to_datetime(pickup_at)
@@ -392,9 +408,12 @@ def clean_pickup_at(df):
     pickup_at = np.where(
         # pickup_at must be after or at the same time than vehicle_arrived_at
         # pickup_at can not be far away from scheduled_to
-        (pickup_at < df["vehicle_arrived_at"]) | (pickup_at - df['scheduled_to'] > pd.Timedelta(days=1)),
+        (pickup_at < df["vehicle_arrived_at"])
+        | (pickup_at - df["scheduled_to"] > pd.Timedelta(days=1)),
         np.where(
-            (df["pickup_eta"].isna()) | (df["pickup_eta"] < df["vehicle_arrived_at"]) | (pickup_at - df['scheduled_to'] >= pd.Timedelta(days=1)),
+            (df["pickup_eta"].isna())
+            | (df["pickup_eta"] < df["vehicle_arrived_at"])
+            | (pickup_at - df["scheduled_to"] >= pd.Timedelta(days=1)),
             np.where(
                 (
                     df["vehicle_arrived_at"] + pd.Timedelta(seconds=avg_boarding_time)
@@ -422,13 +441,15 @@ def clean_pickup_eta(df):
 
     # Check ordering
     pickup_eta = np.where(
-        (pickup_eta < df['dispatched_at']) | (pickup_eta - df['scheduled_to'] > pd.Timedelta(days=1)),
-        df['pickup_at'],
-        pickup_eta
+        (pickup_eta < df["dispatched_at"])
+        | (pickup_eta - df["scheduled_to"] > pd.Timedelta(days=1)),
+        df["pickup_at"],
+        pickup_eta,
     )
     pickup_eta = pd.to_datetime(pickup_eta)
 
     return pickup_eta
+
 
 # Attribute: 'pickup_first_eta'
 def clean_pickup_first_eta(df):
@@ -437,18 +458,23 @@ def clean_pickup_first_eta(df):
 
     # Check ordering
     pickup_first_eta = np.where(
-        # if pickup_first_eta not at same day than scheduled_to and case that ride takes place at midnight 
-        (pickup_first_eta < df['dispatched_at']) | ((pickup_first_eta.dt.day != df['scheduled_to'].dt.day) & (pickup_first_eta - df['scheduled_to'] > pd.Timedelta(minutes=80))),
-        df['pickup_eta'],
-        pickup_first_eta
+        # if pickup_first_eta not at same day than scheduled_to and case that ride takes place at midnight
+        (pickup_first_eta < df["dispatched_at"])
+        | (
+            (pickup_first_eta.dt.day != df["scheduled_to"].dt.day)
+            & (pickup_first_eta - df["scheduled_to"] > pd.Timedelta(minutes=80))
+        ),
+        df["pickup_eta"],
+        pickup_first_eta,
     )
     pickup_first_eta = pd.to_datetime(pickup_first_eta)
 
     return pickup_first_eta
 
+
 # Attribute: 'dropoff_at'
 def clean_dropoff_at(df):
-    df['dropoff_at'] = pd.to_datetime(df["dropoff_at"])
+    df["dropoff_at"] = pd.to_datetime(df["dropoff_at"])
     dropoff_eta = pd.to_datetime(df["dropoff_eta"])
     ftr = [3600, 60, 1]
     shortest_ridetime = (
@@ -457,25 +483,27 @@ def clean_dropoff_at(df):
         .apply(lambda row: sum([a * b for a, b in zip(ftr, map(int, row.split(":")))]))
     )
 
-    df['dropoff_at'] = np.where(
-        (df['dropoff_at'].isna()) & (df["state"] == "completed"),
+    df["dropoff_at"] = np.where(
+        (df["dropoff_at"].isna()) & (df["state"] == "completed"),
         np.where(
-            (df["dropoff_eta"].isna()) | (dropoff_eta - df['scheduled_to'] >= pd.Timedelta(days=1)),
-            df['dropoff_at'] + pd.to_timedelta(shortest_ridetime, unit="s"), 
+            (df["dropoff_eta"].isna())
+            | (dropoff_eta - df["scheduled_to"] >= pd.Timedelta(days=1)),
+            df["dropoff_at"] + pd.to_timedelta(shortest_ridetime, unit="s"),
             df["dropoff_eta"],
         ),
-        df['dropoff_at'],
+        df["dropoff_at"],
     )
-    df['dropoff_at'] = pd.to_datetime(df['dropoff_at'])
+    df["dropoff_at"] = pd.to_datetime(df["dropoff_at"])
 
     # Check ordering
-    df['dropoff_at'] = np.where(
-        (df['dropoff_at'] <= df["pickup_at"]) | (df['dropoff_at'] - df['scheduled_to'] > pd.Timedelta(days=1)),
-        df['pickup_at'] + pd.to_timedelta(shortest_ridetime, unit="s"),
+    df["dropoff_at"] = np.where(
+        (df["dropoff_at"] <= df["pickup_at"])
+        | (df["dropoff_at"] - df["scheduled_to"] > pd.Timedelta(days=1)),
+        df["pickup_at"] + pd.to_timedelta(shortest_ridetime, unit="s"),
         df["dropoff_at"],
     )
 
-    dropoff_at = pd.to_datetime(df['dropoff_at'])
+    dropoff_at = pd.to_datetime(df["dropoff_at"])
 
     return dropoff_at
 
@@ -487,13 +515,15 @@ def clean_dropoff_eta(df):
 
     # Check ordering
     dropoff_eta = np.where(
-        (dropoff_eta < df['dispatched_at']) | (dropoff_eta - df['scheduled_to'] > pd.Timedelta(days=1)),
-        df['dropoff_at'],
-        dropoff_eta
+        (dropoff_eta < df["dispatched_at"])
+        | (dropoff_eta - df["scheduled_to"] > pd.Timedelta(days=1)),
+        df["dropoff_at"],
+        dropoff_eta,
     )
     dropoff_eta = pd.to_datetime(dropoff_eta)
 
     return dropoff_eta
+
 
 # Attribute: 'dropoff_first_eta'
 def clean_dropoff_first_eta(df):
@@ -510,14 +540,19 @@ def clean_dropoff_first_eta(df):
 
     # Check ordering
     dropoff_first_eta = np.where(
-        # if dropoff_first_eta not at same day than scheduled_to and case that ride takes place at midnight 
-        (dropoff_first_eta < df['dispatched_at']) | ((dropoff_first_eta.dt.day != df['scheduled_to'].dt.day) & (dropoff_first_eta - df['scheduled_to'] > pd.Timedelta(minutes=80))),
+        # if dropoff_first_eta not at same day than scheduled_to and case that ride takes place at midnight
+        (dropoff_first_eta < df["dispatched_at"])
+        | (
+            (dropoff_first_eta.dt.day != df["scheduled_to"].dt.day)
+            & (dropoff_first_eta - df["scheduled_to"] > pd.Timedelta(minutes=80))
+        ),
         df["pickup_first_eta"] + pd.to_timedelta(shortest_ridetime, unit="s"),
-        dropoff_first_eta
+        dropoff_first_eta,
     )
     dropoff_first_eta = pd.to_datetime(dropoff_first_eta)
 
     return dropoff_first_eta
+
 
 # Attributes: ['pickup_arrival_time', 'arrival_deviation', 'waiting_time', 'boarding_time', 'ride_time', 'trip_time', 'shortest_ridetime', 'delay', 'longer_route_factor']
 def clean_time_periods(df):
@@ -679,7 +714,7 @@ def data_cleaning(df, df_stops):
     df["vehicle_arrived_at"] = clean_vehicle_arrived_at(df)
 
     print("clean arriving_push")
-    df['arriving_push'] = clean_arriving_push(df)
+    df["arriving_push"] = clean_arriving_push(df)
 
     print("clean earliest_pickup_expectation")
     df["earliest_pickup_expectation"] = clean_earlierst_pickup_expectation(df)
@@ -709,88 +744,277 @@ def data_cleaning(df, df_stops):
     df["rating"] = clean_rating(df)
     return df
 
-def data_check(df):
-    # check the most important orderings and calculations - move incorrect entities into df_incorrect 
-    df = df[df['state']=='completed']
 
-    df[['created_at', 'scheduled_to', 'dispatched_at', 'arriving_push', 'vehicle_arrived_at', 'earliest_pickup_expectation', 'pickup_first_eta', 'pickup_eta', 'pickup_at', 'dropoff_first_eta', 'dropoff_eta', 'dropoff_at', 'updated_at']] = df[['created_at', 'scheduled_to', 'dispatched_at', 'arriving_push', 'vehicle_arrived_at', 'earliest_pickup_expectation', 'pickup_first_eta', 'pickup_eta', 'pickup_at', 'dropoff_first_eta', 'dropoff_eta', 'dropoff_at', 'updated_at']].apply(pd.to_datetime)
-    
+def add_shared_rides(df, vehicle_usage_df, external_df):
+    print("add shared rides")
+
+    # vehicle_usage_df preprocessing - filteirng on Stop Point type and status + drop remaining duplicates
+    merge_vehicle_df = vehicle_usage_df[
+        (vehicle_usage_df["Stop Point Type"] == "dropoff")
+        & (vehicle_usage_df["Stop Point status"] == "completed")
+    ]
+    merge_vehicle_df.dropna(subset=["Ride Id"], inplace=True)
+    merge_vehicle_df.sort_values(by="Vehicle Id", inplace=True)
+    merge_vehicle_df.drop_duplicates(subset=["Ride Id"], inplace=True)
+    merge_vehicle_df.rename(columns={"Ride Id": "Ride_id_vehicle_usage"}, inplace=True)
+    merge_vehicle_df = merge_vehicle_df[["Ride_id_vehicle_usage", "Vehicle Id"]]
+
+    # external df preprocssing - only id which are in vehicle usage df
+    merge_external_df = external_df[
+        external_df["Id"].isin(merge_vehicle_df["Ride_id_vehicle_usage"])
+    ]
+    merge_external_df.rename(columns={"Id": "Ride_id_external"}, inplace=True)
+    merge_external_df = merge_external_df[["Ride_id_external", "External Id"]]
+
+    # Left Join filtered vehicle df and external df + preprocessing for join with rides_df
+    vehicle_external_merge = merge_vehicle_df.merge(
+        merge_external_df,
+        how="left",
+        left_on="Ride_id_vehicle_usage",
+        right_on="Ride_id_external",
+    )
+    vehicle_external_merge.dropna(subset=["External Id"], inplace=True)
+    vehicle_external_merge.drop_duplicates(subset=["External Id"], inplace=True)
+    vehicle_external_merge = vehicle_external_merge[
+        vehicle_external_merge["External Id"].isin(df["id"])
+    ]
+
+    # Left Join removed duplicates rides_df & filterd vehicle_external_merge
+    rides_vehicle_merge_df = df.merge(
+        vehicle_external_merge, how="left", left_on="id", right_on="External Id"
+    )
+    rides_vehicle_merge_df.drop(
+        columns=["External Id", "Ride_id_external", "Ride_id_vehicle_usage"],
+        inplace=True,
+    )
+
+    # find shared rides and add columns "shared_rides"
+    df = rides_vehicle_merge_df.copy()
+    # Create empty combined ride columns - need to be adjusted if more than 3 rides combined
+    df["shared_rides_1"] = NaN
+    df["shared_rides_2"] = NaN
+    df["shared_rides_3"] = NaN
+
+    for index, row in df.iterrows():
+
+        # skip offers and rides w/o vehicle Id
+        if row["Vehicle Id"] == NaN:
+            continue
+
+        ride_id = row["id"]
+        vehicle_id = row["Vehicle Id"]
+        pickup = row["pickup_at"]
+        dropoff = row["dropoff_at"]
+
+        # Expressions Match vehicle Id and different time scenarios
+        exp_vehicle = df["Vehicle Id"] == vehicle_id
+        # smaller time means earlier
+        exp_1 = (df["pickup_at"] > pickup) & (df["dropoff_at"] < dropoff)
+        exp_2 = (
+            (df["pickup_at"] < pickup)
+            & (df["dropoff_at"] < dropoff)
+            & (df["dropoff_at"] > pickup)
+        )
+        exp_3 = (df["pickup_at"] < pickup) & (df["dropoff_at"] > dropoff)
+        exp_4 = (
+            (df["pickup_at"] > pickup)
+            & (df["dropoff_at"] > dropoff)
+            & (df["pickup_at"] < dropoff)
+        )
+
+        filt_df = exp_vehicle & (exp_1 | exp_2 | exp_3 | exp_4)
+        true_count_filt_df = filt_df[filt_df == True].count()
+
+        if true_count_filt_df == 1:
+            vehicle_id_list = df["id"][filt_df].to_list()
+            df.loc[df.id == ride_id, ["shared_rides_1"]] = vehicle_id_list
+        elif true_count_filt_df == 2:
+            vehicle_id_list = df["id"][filt_df].to_list()
+            df.loc[
+                df.id == ride_id, ["shared_rides_1", "shared_rides_2"]
+            ] = vehicle_id_list
+        elif true_count_filt_df == 3:
+            vehicle_id_list = df["id"][filt_df].to_list()
+            df.loc[
+                df.id == ride_id, ["shared_rides_1", "shared_rides_2", "shared_rides_3"]
+            ] = vehicle_id_list
+
+    return df
+
+
+def data_check(df):
+    # check the most important orderings and calculations - move incorrect entities into df_incorrect
+    df = df[df["state"] == "completed"]
+
+    df[
+        [
+            "created_at",
+            "scheduled_to",
+            "dispatched_at",
+            "arriving_push",
+            "vehicle_arrived_at",
+            "earliest_pickup_expectation",
+            "pickup_first_eta",
+            "pickup_eta",
+            "pickup_at",
+            "dropoff_first_eta",
+            "dropoff_eta",
+            "dropoff_at",
+            "updated_at",
+        ]
+    ] = df[
+        [
+            "created_at",
+            "scheduled_to",
+            "dispatched_at",
+            "arriving_push",
+            "vehicle_arrived_at",
+            "earliest_pickup_expectation",
+            "pickup_first_eta",
+            "pickup_eta",
+            "pickup_at",
+            "dropoff_first_eta",
+            "dropoff_eta",
+            "dropoff_at",
+            "updated_at",
+        ]
+    ].apply(
+        pd.to_datetime
+    )
+
     # filter wrong ordering: created_at
-    df_incorrect = df.loc[(df.created_at > df.scheduled_to) | (df.created_at > df.dispatched_at)
-    | (df.created_at > df.arriving_push) | (df.created_at > df.vehicle_arrived_at)
-    | (df.created_at > df.earliest_pickup_expectation) | (df.created_at > df.pickup_first_eta)
-    | (df.created_at > df.pickup_eta) | (df.created_at > df.pickup_at)
-    | (df.created_at > df.dropoff_first_eta) | (df.created_at > df.dropoff_eta)
-    | (df.created_at > df.dropoff_at) | (df.created_at > df.updated_at)]
+    df_incorrect = df.loc[
+        (df.created_at > df.scheduled_to)
+        | (df.created_at > df.dispatched_at)
+        | (df.created_at > df.arriving_push)
+        | (df.created_at > df.vehicle_arrived_at)
+        | (df.created_at > df.earliest_pickup_expectation)
+        | (df.created_at > df.pickup_first_eta)
+        | (df.created_at > df.pickup_eta)
+        | (df.created_at > df.pickup_at)
+        | (df.created_at > df.dropoff_first_eta)
+        | (df.created_at > df.dropoff_eta)
+        | (df.created_at > df.dropoff_at)
+        | (df.created_at > df.updated_at)
+    ]
 
     # filter wrong ordering: scheduled_to
     df_incorrect = df.loc[(df.scheduled_to < df.dispatched_at)]
-    
-    # filter all timestamps that are not on the same date than scheduled_to 
-    # automatically validated if all other timestamps are on the same day  
-    df_incorrect = df.loc[(df.dispatched_at.dt.day != df.scheduled_to.dt.day) | (df.arriving_push.dt.day != df.scheduled_to.dt.day) 
-    | (df.vehicle_arrived_at.dt.day != df.scheduled_to.dt.day) | (df.earliest_pickup_expectation.dt.day != df.scheduled_to.dt.day) 
-    | (df.pickup_first_eta.dt.day != df.scheduled_to.dt.day) | (df.pickup_eta.dt.day != df.scheduled_to.dt.day) | (df.pickup_at.dt.day != df.scheduled_to.dt.day) 
-    | (df.dropoff_first_eta.dt.day != df.scheduled_to.dt.day) | (df.dropoff_eta.dt.day != df.scheduled_to.dt.day) | (df.dropoff_at.dt.day != df.scheduled_to.dt.day)]
-    
-    # filter cases where the timestamps are not on the same day because they were at midnight  
+
+    # filter all timestamps that are not on the same date than scheduled_to
+    # automatically validated if all other timestamps are on the same day
+    df_incorrect = df.loc[
+        (df.dispatched_at.dt.day != df.scheduled_to.dt.day)
+        | (df.arriving_push.dt.day != df.scheduled_to.dt.day)
+        | (df.vehicle_arrived_at.dt.day != df.scheduled_to.dt.day)
+        | (df.earliest_pickup_expectation.dt.day != df.scheduled_to.dt.day)
+        | (df.pickup_first_eta.dt.day != df.scheduled_to.dt.day)
+        | (df.pickup_eta.dt.day != df.scheduled_to.dt.day)
+        | (df.pickup_at.dt.day != df.scheduled_to.dt.day)
+        | (df.dropoff_first_eta.dt.day != df.scheduled_to.dt.day)
+        | (df.dropoff_eta.dt.day != df.scheduled_to.dt.day)
+        | (df.dropoff_at.dt.day != df.scheduled_to.dt.day)
+    ]
+
+    # filter cases where the timestamps are not on the same day because they were at midnight
     # use dropoff_at for comparison (should include all other timestamps)
-    df_incorrect = df_incorrect.loc[(df_incorrect.dropoff_at - df_incorrect.scheduled_to > pd.Timedelta(minutes=60))]
-    
+    df_incorrect = df_incorrect.loc[
+        (df_incorrect.dropoff_at - df_incorrect.scheduled_to > pd.Timedelta(minutes=60))
+    ]
+
     # filter wrong ordering: dispatched_at
-    df_incorrect = df.loc[ (df.dispatched_at > df.vehicle_arrived_at) | (df.dispatched_at > df.earliest_pickup_expectation) | (df.dispatched_at > df.pickup_first_eta)
-    | (df.dispatched_at > df.pickup_eta) | (df.dispatched_at > df.pickup_at) | (df.dispatched_at > df.dropoff_first_eta) | (df.dispatched_at > df.dropoff_eta)
-    | (df.dispatched_at > df.dropoff_at)]
-    
+    df_incorrect = df.loc[
+        (df.dispatched_at > df.vehicle_arrived_at)
+        | (df.dispatched_at > df.earliest_pickup_expectation)
+        | (df.dispatched_at > df.pickup_first_eta)
+        | (df.dispatched_at > df.pickup_eta)
+        | (df.dispatched_at > df.pickup_at)
+        | (df.dispatched_at > df.dropoff_first_eta)
+        | (df.dispatched_at > df.dropoff_eta)
+        | (df.dispatched_at > df.dropoff_at)
+    ]
+
     # filter wrong ordering: arriving_push
-    df_incorrect = df.loc[(df.arriving_push > df.vehicle_arrived_at) | (df.arriving_push > df.pickup_at) | (df.arriving_push > df.dropoff_at)]
-    
+    df_incorrect = df.loc[
+        (df.arriving_push > df.vehicle_arrived_at)
+        | (df.arriving_push > df.pickup_at)
+        | (df.arriving_push > df.dropoff_at)
+    ]
+
     # filter wrong ordering: vehicle_arrived_at
-    df_incorrect = df.loc[(df.vehicle_arrived_at > df.pickup_at) | (df.vehicle_arrived_at > df.dropoff_at)]
+    df_incorrect = df.loc[
+        (df.vehicle_arrived_at > df.pickup_at) | (df.vehicle_arrived_at > df.dropoff_at)
+    ]
 
     # filter wrong ordering: pickup_at
     df_incorrect = df.loc[(df.pickup_at > df.dropoff_at)]
-    
+
     # test the calculations
     # pickup_arrival_time
-    df_incorrect = df.loc[((df.vehicle_arrived_at - df.dispatched_at).dt.seconds != df.pickup_arrival_time) 
-    # arrival_deviation
-    | (((df.vehicle_arrived_at - df.arriving_push).dt.seconds -180)!= df.arrival_deviation)
-    # waiting_time
-    | (((df.vehicle_arrived_at - df.earliest_pickup_expectation).dt.seconds != df.waiting_time) & (df.vehicle_arrived_at>df.earliest_pickup_expectation))
-    # filter cases where the values where negative
-    | (((df.vehicle_arrived_at - df.earliest_pickup_expectation).dt.seconds - 86400 != df.waiting_time) & (df.vehicle_arrived_at<df.earliest_pickup_expectation))
-    # boarding_time
-    | ((df.pickup_at - df.vehicle_arrived_at).dt.seconds != df.boarding_time)
-    # ride_time
-    | ((df.dropoff_at - df.pickup_at).dt.seconds != df.ride_time)
-    # trip_time 
-    | ((df.ride_time + df.waiting_time) != df.trip_time)
-    # delay
-    | ((df.trip_time - df.shortest_ridetime) != df.delay)
-    ] 
-    
-    # filiter the biggest outliers 
+    df_incorrect = df.loc[
+        (
+            (df.vehicle_arrived_at - df.dispatched_at).dt.seconds
+            != df.pickup_arrival_time
+        )
+        # arrival_deviation
+        | (
+            ((df.vehicle_arrived_at - df.arriving_push).dt.seconds - 180)
+            != df.arrival_deviation
+        )
+        # waiting_time
+        | (
+            (
+                (df.vehicle_arrived_at - df.earliest_pickup_expectation).dt.seconds
+                != df.waiting_time
+            )
+            & (df.vehicle_arrived_at > df.earliest_pickup_expectation)
+        )
+        # filter cases where the values where negative
+        | (
+            (
+                (df.vehicle_arrived_at - df.earliest_pickup_expectation).dt.seconds
+                - 86400
+                != df.waiting_time
+            )
+            & (df.vehicle_arrived_at < df.earliest_pickup_expectation)
+        )
+        # boarding_time
+        | ((df.pickup_at - df.vehicle_arrived_at).dt.seconds != df.boarding_time)
+        # ride_time
+        | ((df.dropoff_at - df.pickup_at).dt.seconds != df.ride_time)
+        # trip_time
+        | ((df.ride_time + df.waiting_time) != df.trip_time)
+        # delay
+        | ((df.trip_time - df.shortest_ridetime) != df.delay)
+    ]
+
+    # filiter the biggest outliers
     # pickup_arrival_time
-    df_incorrect = df.loc[(df.pickup_arrival_time >= 10000) 
-    # arrival_deviation
-    | (df.arrival_deviation >= 2000)
-    # waiting_time
-    | (df.waiting_time >= 3000) 
-    # boarding_time
-    | (df.boarding_time >= 2000) 
-    # ride_time
-    | (df.ride_time >= 5000) 
-    # trip_time 
-    | (df.trip_time >= 5000) 
-    # delay
-    | (df.delay >= 5000) 
-    ] 
-    
+    df_incorrect = df.loc[
+        (df.pickup_arrival_time >= 10000)
+        # arrival_deviation
+        | (df.arrival_deviation >= 2000)
+        # waiting_time
+        | (df.waiting_time >= 3000)
+        # boarding_time
+        | (df.boarding_time >= 2000)
+        # ride_time
+        | (df.ride_time >= 5000)
+        # trip_time
+        | (df.trip_time >= 5000)
+        # delay
+        | (df.delay >= 5000)
+    ]
+
     # remove incorrect entities and outliers from the cleaned_df
-    df = pd.merge(df, df_incorrect, indicator=True, how='outer').query('_merge=="left_only"').drop('_merge', axis=1)
- 
+    df = (
+        pd.merge(df, df_incorrect, indicator=True, how="outer")
+        .query('_merge=="left_only"')
+        .drop("_merge", axis=1)
+    )
+
     return (df, df_incorrect)
+
 
 if __name__ == "__main__":
     repo = git.Repo(".", search_parent_directories=True).git.rev_parse(
@@ -800,17 +1024,23 @@ if __name__ == "__main__":
     df_stops = pd.read_excel(
         f"{repo}/data/other/MoDstops+Preismodell.xlsx", sheet_name="MoDstops"
     )
+    vehicle_usage_df = pd.read_excel(
+        f"{repo}/data/vehicle_data/MoD_Vehicle Usage_2021+2022-05-15.xlsx"
+    )
+    external_df = pd.read_excel(
+        f"{repo}/data/vehicle_data/Autofleet_Rides with External ID_2021+2022-05-15.xlsx"
+    )
 
     df = clean_duplicates(df)
 
     df = data_cleaning(df, df_stops)
 
-    print('check cleaned data')
+    df = add_shared_rides(df, vehicle_usage_df, external_df)
+
+    print("check cleaned data")
     df, df_incorrect = data_check(df)
     if df_incorrect.empty == False:
-        df_incorrect.to_excel(
-            f"{repo}/data/cleaning/incorrect{int(time.time())}.xlsx"
-        )
+        df_incorrect.to_excel(f"{repo}/data/cleaning/incorrect{int(time.time())}.xlsx")
 
     df.to_csv(f"{repo}/data/cleaning/data_cleaned.csv", index=False)
 
