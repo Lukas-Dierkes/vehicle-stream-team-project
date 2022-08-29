@@ -1,7 +1,11 @@
+import warnings
+
 import dash
 import dash_bootstrap_components as dbc
 import dash_labs as dl
 from dash import Input, Output, State, dcc, html
+
+warnings.filterwarnings("ignore")
 
 app = dash.Dash(
     __name__, plugins=[dl.plugins.pages], external_stylesheets=[dbc.themes.BOOTSTRAP]

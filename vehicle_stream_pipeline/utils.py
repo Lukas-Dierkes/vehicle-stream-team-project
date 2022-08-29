@@ -287,6 +287,37 @@ def find_id_for_name(name, df_stops):
     )[0]
 
 
+def get_date_range(start_date, end_date):
+    start_month = start_date.month
+    start_year = start_date.year
+    end_month = end_date.month
+    end_year = end_date.year
+
+    years = list(range(start_year, end_year + 1))
+    i = len(years)
+    j = 0
+    months = []
+    years_all = []
+    if i == 1:
+        months.extend(range(start_month, end_month + 1))
+        years_all.extend([start_year] * (end_month - start_month + 1))
+    else:
+        while i > 1:
+            if j == 0:
+                months.extend(range(start_month, 13))
+                years_all.extend([start_year] * (12 - start_month + 1))
+                j = j + 1
+            else:
+                months.extend(range(1, 13))
+                years_all.extend([start_year + j] * 12)
+            i = i - 1
+        months.extend(range(1, end_month + 1))
+        years_all.extend([end_year] * (end_month))
+        i = i - 1
+    date_range = list(zip(years_all, months))
+    return date_range
+
+
 # help function that returns a probability distribution for continous variables based on mean & standard deviation
 def getdistribution(data, column, min=None, max=None):
     # distribution over scheduled rides

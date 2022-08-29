@@ -1,3 +1,4 @@
+import math
 from datetime import datetime as dt
 
 import dash
@@ -31,6 +32,30 @@ df_edges.rename(columns={"Start #": "start_id", "Ende #": "end_id"}, inplace=Tru
 rides_df = pd.read_csv(f"{repo}/data/cleaning/data_cleaned.csv")
 rides_df = rides_df[(rides_df["state"] == "completed")]
 rides_df["scheduled_to"] = pd.to_datetime(rides_df["scheduled_to"])
+
+# simulate high number of rides depending on start and end date of rides_df
+start_date = min(rides_df["scheduled_to"])
+end_date = max(rides_df["scheduled_to"])
+
+date_range = utils.get_date_range(start_date, end_date)
+data_range_len = len(date_range)
+
+total_sim_rides = 500  # will be filtered later
+sim_rides_count = math.ceil(total_sim_rides / data_range_len)
+sim_rides_all = pd.DataFrame(columns=rides_df.columns)
+for (year, month) in date_range:
+    sim_rides = utils.generateRideSpecs(
+        rides_df,
+        df_stops,
+        df_edges,
+        sim_rides_count,
+        month,
+        year,
+    )
+    sim_rides_all = pd.concat([sim_rides, sim_rides_all])
+
+sim_rides_all["simulated"] = True  # will be filtered later
+rides_df["simulated"] = False
 
 
 controls = dbc.Card(
@@ -238,8 +263,10 @@ def create_geo_graph(
     global rides_df
     global df_edges
     global df_stops
+    global sim_rides_all
 
     rides_df_1 = rides_df.copy()
+    sim_rides_all_1 = sim_rides_all.copy()
     route_information = ""
     ridetime = "Average time to destination: 77 days"
 
@@ -249,52 +276,13 @@ def create_geo_graph(
     start_date = dt.strptime(start_date, "%Y-%m-%d")
     end_date = dt.strptime(end_date, "%Y-%m-%d")
 
-    start_month = start_date.month
-    start_year = start_date.year
-    end_month = end_date.month
-    end_year = end_date.year
-
-    years = list(range(start_year, end_year + 1))
-    i = len(years)
-    j = 0
-    months = []
-    years_all = []
-    if i == 1: 
-        months.extend(range(start_month, end_month + 1))
-        years_all.extend([start_year]*(end_month-start_month+1))
-    else: 
-        while i > 1:
-            if j == 0:
-                months.extend(range(start_month, 13))
-                years_all.extend([start_year]*(12-start_month+1))
-                j = j+1
-            else: 
-                months.extend(range(1, 13))
-                years_all.extend([start_year+j]*12)
-            i = i-1
-        months.extend(range(1, end_month +1))
-        years_all.extend([end_year]*(end_month))
-        i = i-1
-    date_range = list(zip(years_all, months))
-
     if sim_rides != 0:
-
-        new_rides_all = pd.DataFrame(columns=rides_df_1.columns)
-        for (year, month) in date_range:
-            new_rides = utils.generateRideSpecs(
-                rides_df_1,
-                df_stops,
-                df_edges,
-                sim_rides,
-                month,
-                year,
-            )
-            new_rides_all = pd.concat([new_rides, new_rides_all])
-
-        new_rides_all["simulated"] = True
-        rides_df_1["simulated"] = False
-
-        new_rides_all = pd.concat([rides_df_1, new_rides_all])
+        sim_rides_all_1 = sim_rides_all_1[
+            (sim_rides_all_1["scheduled_to"] > start_date)
+            & (sim_rides_all_1["scheduled_to"] < end_date)
+        ]
+        sim_rides_all_1.sample(n=sim_rides)
+        new_rides_all = pd.concat([rides_df_1, sim_rides_all_1])
 
     else:
         new_rides_all = rides_df_1
@@ -332,7 +320,7 @@ def create_geo_graph(
             )
         else:
             layers = utils.create_circles_around_drone_spots(df_stops_drones, radius)
-           
+
             drives_with_drones = utils.add_drone_flights(
                 df_edges, drives_without_drones, drone_spots=drone_spots, radius=radius
             )
