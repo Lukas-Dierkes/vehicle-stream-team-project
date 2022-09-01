@@ -1,5 +1,6 @@
 import collections
 import json
+import os
 import time
 from datetime import datetime as dt
 
@@ -12,7 +13,38 @@ import scipy.stats as stats
 import shapely.geometry
 from scipy.stats import truncnorm
 
-pd.set_option("display.max_columns", None)
+
+def create_overall_dataframes(path):
+    directory = os.fsencode(path)
+    df_rides = pd.DataFrame()
+    df_kpi = pd.DataFrame()
+    df_mtd = pd.DataFrame()
+    for filename in os.listdir(directory):
+        if "Rides" not in str(filename):
+            continue
+
+        # Get correct filename
+        current_file = os.path.join(directory, filename).decode("utf-8")
+        current_file = current_file.replace("$", "")
+        current_file = current_file.replace("~", "")
+
+        # Read current excel file
+        df_dict = pd.read_excel(current_file, sheet_name=None)
+
+        # Extract dataframes from current excel file
+        df_kpi_temp = df_dict["KPI"]
+        df_dict.pop("KPI")
+        df_mtd_temp = df_dict["MTD"]
+        df_dict.pop("MTD")
+        # union all rides from all days in current excel file
+        df_rides_temp = pd.concat(df_dict, ignore_index=True)
+
+        # Create big dataframes over all excel files (all months combined)
+        df_kpi = pd.concat([df_kpi, df_kpi_temp], axis=0, ignore_index=True)
+        df_mtd = pd.concat([df_mtd, df_mtd_temp], axis=0, ignore_index=True)
+        df_rides = pd.concat([df_rides, df_rides_temp], axis=0, ignore_index=True)
+
+    return {"df_kpi": df_kpi, "df_mtd": df_mtd, "df_rides": df_rides}
 
 
 def get_geo_cordinates_for_path(df_stops, path):
@@ -575,7 +607,8 @@ def generateCreatedAt(oldRides, newRides, m, y):
             minutes=np.random.choice(
                 dist_minute["minute"], p=dist_minute["probabilities"]
             ),  # choose minute based on distribution of that hour
-            seconds=np.random.choice(list(range(0, 60))),  # random choice of seconds
+            # random choice of seconds
+            seconds=np.random.choice(list(range(0, 60))),
         )
     )
     values.sort_values(by=["created_at"])
@@ -702,7 +735,7 @@ def generateArrival(oldRides, newRides):
     arrivalNew["scheduled_to"] = pd.to_datetime(arrivalNew["scheduled_to"])
     arrivalNew["dispatched_at"] = pd.to_datetime(arrivalNew["dispatched_at"])
 
-    ##### generate timestamp 'vehicle_arrived_at'
+    # generate timestamp 'vehicle_arrived_at'
     arrivalOld["schedule_deviation"] = arrivalOld.apply(
         lambda row: (
             (row["vehicle_arrived_at"] - row["scheduled_to"]).round(freq="s")
@@ -750,7 +783,7 @@ def generateArrival(oldRides, newRides):
         arrivalNew["vehicle_arrived_at"],
     )
 
-    ##### calculate 'pickup_arrival_time'
+    # calculate 'pickup_arrival_time'
     arrivalNew["pickup_arrival_time"] = (
         arrivalNew["vehicle_arrived_at"] - arrivalNew["dispatched_at"]
     ).dt.seconds
@@ -826,12 +859,12 @@ def generatePickup(oldRides, newRides):
         pd.to_datetime
     )
 
-    ##### generate earliest_pickup_expectation
+    # generate earliest_pickup_expectation
     pickupNew["earliest_pickup_expectation"] = pickupNew[
         "dispatched_at"
     ] + pd.Timedelta(minutes=3)
 
-    ##### genrate pickup_at
+    # genrate pickup_at
     pickupOld["time_until_pickup"] = pickupOld.apply(
         lambda row: (
             (row["pickup_at"] - row["vehicle_arrived_at"]).round(freq="s")
@@ -870,7 +903,7 @@ def generatePickup(oldRides, newRides):
         axis=1,
     )
 
-    ##### generate pickup_eta
+    # generate pickup_eta
     # distribution of the time between pickup_at and pickup_eta
     pickupOld["deviation_of_pickup_eta"] = pickupOld.apply(
         lambda row: (
@@ -896,7 +929,7 @@ def generatePickup(oldRides, newRides):
         pickupNew["pickup_eta"],
     )
 
-    ##### generate pickup_first_eta
+    # generate pickup_first_eta
     # distribution of the time between pickup_at and pickup_first_eta
     pickupOld["deviation_of_pickup_first_eta"] = pickupOld.apply(
         lambda row: (
@@ -937,7 +970,7 @@ def generatePickup(oldRides, newRides):
         pickupNew["pickup_first_eta"],
     )
 
-    ##### generate arriving_push
+    # generate arriving_push
     # distribution of the time between arriving_push and vehicle_arrived_at
     pickupOld["deviation_of_arriving_push"] = pickupOld.apply(
         lambda row: (
@@ -1066,7 +1099,7 @@ def generateDropoff(oldRides, newRides, routes):
         False,
     )
 
-    ##### generate ride_time based on ride_time of most similar rides
+    # generate ride_time based on ride_time of most similar rides
     dropoffNew["ride_time"] = dropoffNew.apply(
         lambda row:
         # if rides exist with same route & workday/weekend flag & in a timeframe of +/-1 hour
@@ -1135,17 +1168,17 @@ def generateDropoff(oldRides, newRides, routes):
         axis=1,
     )
 
-    ##### genereate dropoff_at
+    # genereate dropoff_at
     dropoffNew["dropoff_at"] = dropoffNew["pickup_at"] + pd.to_timedelta(
         dropoffNew["ride_time"], unit="seconds"
     )
 
-    ##### generate dropoff_first_eta
+    # generate dropoff_first_eta
     dropoffNew["dropoff_first_eta"] = dropoffNew["pickup_first_eta"] + pd.to_timedelta(
         dropoffNew["shortest_ridetime"], unit="seconds"
     )
 
-    ##### generate dropoff_eta
+    # generate dropoff_eta
     # distribution of the time between dropoff_at and dropoff_eta
     dropoffOld["deviation_of_dropoff_eta"] = dropoffOld.apply(
         lambda row: (

@@ -29,51 +29,14 @@ dash.register_page(__name__)
 # df_edges.rename(columns={"Start #": "start_id", "Ende #": "end_id"}, inplace=True)
 
 # rides_df = pd.read_csv(f"{repo}/data/cleaning/data_cleaned.csv")
-rides_df = pd.read_excel(f"{repo}/data/cleaning/data_cleaned_1808.xlsx")
+rides_df = pd.read_csv(f"{repo}/data/cleaning/data_cleaned.csv")
 rides_df = rides_df[(rides_df["state"] == "completed")]
 rides_df["scheduled_to"] = pd.to_datetime(rides_df["scheduled_to"])
 
-sim_df_small = pd.read_csv(f"{repo}/data/sim_rides_1808_9.csv")
-sim_df_large = pd.read_csv(f"{repo}/data/sim_rides_600k.csv")
+# sim_df_small = pd.read_csv(f"{repo}/data/sim_rides_1808_9.csv")
+sim_df_large = pd.read_csv(f"{repo}/data/sim_rides_500k.csv")
+sim_df_large["scheduled_to"] = pd.to_datetime(sim_df_large["scheduled_to"])
 
-# dataframes for Distplots
-dist_df = utils.transformForDist(rides_df, "Original Rides")
-dist_df_sim_s = utils.transformForDist(sim_df_small, "Simulated Rides small")
-dist_df_sim_l = utils.transformForDist(sim_df_large, "Simulated Rides large")
-
-# dataframe for Boxplot
-boxplot_df = pd.concat([dist_df, dist_df_sim_s, dist_df_sim_l])
-
-# dataframe for Piechart Route Visualization
-df_value_counts_rides = utils.transformForRoute(dist_df, "Original Rides")
-df_value_counts_sim_s = utils.transformForRoute(dist_df_sim_s, "Simulated Rides small")
-df_value_counts_sim_l = utils.transformForRoute(dist_df_sim_l, "Simulated Rides large")
-known_route_s = (
-    df_value_counts_sim_s["route"]
-    .loc[df_value_counts_sim_s["route"].isin(df_value_counts_rides["route"])]
-    .count()
-)
-unknown_route_s = (
-    df_value_counts_sim_s["route"]
-    .loc[~df_value_counts_sim_s["route"].isin(df_value_counts_rides["route"])]
-    .count()
-)
-known_route_l = (
-    df_value_counts_sim_l["route"]
-    .loc[df_value_counts_sim_l["route"].isin(df_value_counts_rides["route"])]
-    .count()
-)
-unknown_route_l = (
-    df_value_counts_sim_l["route"]
-    .loc[~df_value_counts_sim_l["route"].isin(df_value_counts_rides["route"])]
-    .count()
-)
-
-print(df_value_counts_rides.shape)
-# dataframe for Barchart Route Visualization
-top_df = utils.transformForBar(
-    10, df_value_counts_rides, df_value_counts_sim_s, df_value_counts_sim_l
-)
 
 # common colour for graphs
 color_rides = "forestgreen"
@@ -89,9 +52,11 @@ layout = dbc.Container(
         html.H1("Ride Simulation", style={"textAlign": "center"}),
         html.Div(
             [
-                dbc.Button(
-                    "Update All Graphs", id="update_all", n_clicks=0, color="primary"
-                ),
+                dcc.Input(
+                    id="input_number_simulated_ride",
+                    type="number",
+                    value=100,
+                )
             ],
             className="d-grid gap-2 col-6 mx-auto",
         ),
@@ -203,11 +168,56 @@ layout = dbc.Container(
         Output("density_week", "figure"),
     ],
     [
-        Input("update_all", "n_clicks"),
+        Input("input_number_simulated_ride", "value"),
     ],
 )
-def update_charts(button):
+def update_charts(number_simulations=100):
+    global sim_df_large
+    sim_df_large_1 = sim_df_large.sample(number_simulations)
+    sim_df_small = sim_df_large_1.sample(100)
 
+    # dataframes for Distplots
+    dist_df = utils.transformForDist(rides_df, "Original Rides")
+    dist_df_sim_s = utils.transformForDist(sim_df_small, "Simulated Rides small")
+    dist_df_sim_l = utils.transformForDist(sim_df_large_1, "Simulated Rides large")
+
+    # dataframe for Boxplot
+    boxplot_df = pd.concat([dist_df, dist_df_sim_s, dist_df_sim_l])
+
+    # dataframe for Piechart Route Visualization
+    df_value_counts_rides = utils.transformForRoute(dist_df, "Original Rides")
+    df_value_counts_sim_s = utils.transformForRoute(
+        dist_df_sim_s, "Simulated Rides small"
+    )
+    df_value_counts_sim_l = utils.transformForRoute(
+        dist_df_sim_l, "Simulated Rides large"
+    )
+    known_route_s = (
+        df_value_counts_sim_s["route"]
+        .loc[df_value_counts_sim_s["route"].isin(df_value_counts_rides["route"])]
+        .count()
+    )
+    unknown_route_s = (
+        df_value_counts_sim_s["route"]
+        .loc[~df_value_counts_sim_s["route"].isin(df_value_counts_rides["route"])]
+        .count()
+    )
+    known_route_l = (
+        df_value_counts_sim_l["route"]
+        .loc[df_value_counts_sim_l["route"].isin(df_value_counts_rides["route"])]
+        .count()
+    )
+    unknown_route_l = (
+        df_value_counts_sim_l["route"]
+        .loc[~df_value_counts_sim_l["route"].isin(df_value_counts_rides["route"])]
+        .count()
+    )
+
+    # print(df_value_counts_rides.shape)
+    # dataframe for Barchart Route Visualization
+    top_df = utils.transformForBar(
+        10, df_value_counts_rides, df_value_counts_sim_s, df_value_counts_sim_l
+    )
     # figure bar chart for routes
     fig_routes_bar = px.bar(
         data_frame=top_df,

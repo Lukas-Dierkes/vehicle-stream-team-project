@@ -15,7 +15,7 @@ from vehicle_stream_pipeline import utils
 repo = git.Repo(".", search_parent_directories=True).git.rev_parse("--show-toplevel")
 
 # Code from: https://github.com/plotly/dash-labs/tree/main/docs/demos/multi_page_example1
-dash.register_page(__name__)
+dash.register_page(__name__, path="/")
 
 
 # fetch data (here we can automate it)
@@ -40,21 +40,11 @@ end_date = max(rides_df["scheduled_to"])
 date_range = utils.get_date_range(start_date, end_date)
 data_range_len = len(date_range)
 
-total_sim_rides = 5000  # will be filtered later
-sim_rides_count = math.ceil(total_sim_rides / data_range_len)
-sim_rides_all = pd.DataFrame(columns=rides_df.columns)
-for (year, month) in date_range:
-    sim_rides = utils.generateRideSpecs(
-        rides_df,
-        df_stops,
-        df_edges,
-        sim_rides_count,
-        month,
-        year,
-    )
-    sim_rides_all = pd.concat([sim_rides, sim_rides_all])
 
+sim_rides_all = pd.read_csv(f"{repo}/data/sim_rides_500k.csv")
 sim_rides_all["simulated"] = True  # will be filtered later
+sim_rides_all["scheduled_to"] = pd.to_datetime(sim_rides_all["scheduled_to"])
+
 rides_df["simulated"] = False
 
 
@@ -275,14 +265,17 @@ def create_geo_graph(
 
     start_date = dt.strptime(start_date, "%Y-%m-%d")
     end_date = dt.strptime(end_date, "%Y-%m-%d")
-
     if sim_rides != 0:
         sim_rides_all_1 = sim_rides_all_1[
             (sim_rides_all_1["scheduled_to"] > start_date)
             & (sim_rides_all_1["scheduled_to"] < end_date)
         ]
-        sim_rides_all_1.sample(n=sim_rides)
-        new_rides_all = pd.concat([rides_df_1, sim_rides_all_1])
+        if sim_rides > len(sim_rides_all_1):
+            sim_rides_sample = sim_rides_all_1.sample(n=sim_rides, replace=True)
+        else:
+            sim_rides_sample = sim_rides_all_1.sample(n=sim_rides)
+
+        new_rides_all = pd.concat([rides_df_1, sim_rides_sample])
 
     else:
         new_rides_all = rides_df_1
@@ -300,9 +293,9 @@ def create_geo_graph(
             rides_df_filterd, start_date, end_date
         )
 
-        hotspots = utils.get_hotspots(df_edges, drives_without_drones)
+        # hotspots = utils.get_hotspots(df_edges, drives_without_drones)
         # hotspots = [spot[0] for spot in hotspots]
-        # hotspots = [1008, 4025, 1005, 1009, 1007, 12007, 7001, 6004, 1010, 11017]
+        hotspots = [1008, 4025, 1005, 1009, 1007, 12007, 7001, 6004, 1010, 11017]
 
         drone_spots = [15011, 13001, 2002, 11007, 4016, 1002, 3020, 9019, 9005]
 

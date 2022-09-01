@@ -3,7 +3,7 @@ import warnings
 import dash
 import dash_bootstrap_components as dbc
 import dash_labs as dl
-from dash import Input, Output, State, dcc, html
+from dash import Input, Output, State, html
 
 warnings.filterwarnings("ignore")
 
