@@ -352,6 +352,18 @@ def get_date_range(start_date, end_date):
 
 # help function that returns a probability distribution for continous variables based on mean & standard deviation
 def getdistribution(data, column, min=None, max=None):
+    """This function generates a normal distribution object for the contious values in a specified column in a DataFrame. If needed the distribution can be truncated between a min & max value.
+
+    Args:
+        data (DataFrame): Pandas DataFrame that contains the column for which a distribution is to be created
+        column (String): Name of the column for which a distribution is to be created
+        min (Float, optional): Minimum value of the distribution / left border. Defaults to None.
+        max (Float, optional): Maximum value of the distribution / right border. Defaults to None.
+
+    Returns:
+        truncnorm: The normal distribution of the specified column - can be truncated to the range [min, max].
+    """
+
     # distribution over scheduled rides
     mean = data[column].median()  # use median to better deal with outlier
     std = data[column].std()
@@ -366,8 +378,19 @@ def getdistribution(data, column, min=None, max=None):
     return stats.truncnorm((a - mean) / std, (b - mean) / std, loc=mean, scale=std)
 
 
-# TODO: Check in the end if too many rides, which are too short or are not likely enough
 def generateRoute(oldRides, newRides, ridestops, routes):
+    """This function selects a route (pickup_addres + dropoff_address) for every new ride based on the route distribution depending on the scheduled_to timestamp of the new ride.
+
+    Args:
+        oldRides (DataFrame): DataFrame containing all origianl past rides - basis for building probability distributions.
+        newRides (DataFrame): DataFrame containing an intermediate result within the process of ride simulation
+        ridestops (DataFrame): DataFrame containing all MoDStops
+        routes (DataFrame): DataFrame containing all routes between all MoDStops
+
+    Returns:
+        DataFrame: Returns the following DataFrame columns ["pickup_address", "dropoff_address", "distance", "shortest_ridetime"] for the new rides.
+    """
+
     # add route identifier to routes dataframe
     allRoutes = routes[
         routes["Route [m]"] > 500
@@ -524,6 +547,18 @@ def generateRoute(oldRides, newRides, ridestops, routes):
 # first step: choose a date from the month based on the probability distribution of rides over the weekdays (Monday-Sunday)
 # second step: choose a timestamp based on the probability distribution of rides that are on the same weekday
 def generateCreatedAt(oldRides, newRides, m, y):
+    """This function returns n random 'created_at' timestamps over a period of one specified month based on the probability distribution in original data with respect to the weekdays (Monday-Sunday) as well as the hour
+
+    Args:
+        oldRides (DataFrame): DataFrame containing all origianl past rides - basis for building probability
+        newRides (DataFrame): DataFrame containing an intermediate result within the process of ride simulation
+        m (Integer): Defines the month for which rides should be simulated. January=1 .. December=12
+        y (Integer): Defines the year for which rides should be simulated
+
+    Returns:
+        Series: Returns a Series object with simulated timestamps for the attribut created_at for all new rides
+    """
+
     # creat list with all days of the month to build up the probability distribution
     if m == 12:
         m1 = 1
@@ -619,6 +654,16 @@ def generateCreatedAt(oldRides, newRides, m, y):
 # first, consider distribution of scheduled & immediate
 # second, for a scheduled ride add a random prebooking time (based on probability distribution of the prebooking time in original data) to created_at
 def generateScheduledTo(oldRides, newRides):
+    """This function returns n random 'scheduled_to' timestamps based on the probability distribution in original data. Distribution of the amount of prebooked & immediate rides as well as of the prebooking time is considered
+
+    Args:
+        oldRides (DataFrame): DataFrame containing all origianl past rides - basis for building probability
+        newRides (DataFrame): DataFrame containing an intermediate result within the process of ride simulation
+
+    Returns:
+        Series: Returns a Series object with simulated timestamps for the attribut created_at for all new rides
+    """
+
     scheduledNew = pd.DataFrame(columns=["hour"])
     scheduledNew["created_at"] = newRides["created_at"]
     scheduledNew["hour"] = scheduledNew["created_at"].apply(lambda x: x.hour)
@@ -673,6 +718,16 @@ def generateScheduledTo(oldRides, newRides):
 # case 1: scheduled ride -> dispatched_at = scheduled_at - 8 min
 # case 2: immediate ride -> dispatched_at = scheduled_at
 def generateDispatchedAt(oldRides, newRides):
+    """This function returns n 'dispatched_at' timestamps based on the logic: scheduled ride => scheduled_to - 8 min.; immediate ride => scheduled_to
+
+    Args:
+        oldRides (DataFrame): DataFrame containing all origianl past rides - basis for building probability
+        newRides (DataFrame): DataFrame containing an intermediate result within the process of ride simulation
+
+    Returns:
+        Series: Returns a Series object with simulated timestamps for the attribut dispatched_at for all new rides
+    """
+
     scheduled = pd.DataFrame(
         newRides[["created_at", "scheduled_to"]], columns=["created_at", "scheduled_to"]
     )
@@ -700,6 +755,16 @@ def generateDispatchedAt(oldRides, newRides):
 # for immediatie rides: scheduled_to + random pickup_arrival_time (based on probability distribution of pickup_arrival_time in original data)
 # second, calculate pickup_arrival_time=vehicle_arrived_at-dispatched_at etc.
 def generateArrival(oldRides, newRides):
+    """This function returns n random 'vehicle_arrived_at' timestamps & 'pickup_arrival_time' time periods based on probability distributions in original data. Distributions of time needed to arrive at the pickup_address for both cases prebooked & immediate rides are considered
+
+    Args:
+        oldRides (DataFrame): DataFrame containing all origianl past rides - basis for building probability
+        newRides (DataFrame): DataFrame containing an intermediate result within the process of ride simulation
+
+    Returns:
+        DataFrame: Returns the following DataFrame columns ["vehicle_arrived_at", "pickup_arrival_time"] for the new rides.
+    """
+
     # get needed information regarding the vehicle arrival in old data
     arrivalOld = pd.DataFrame(
         oldRides[
@@ -792,6 +857,16 @@ def generateArrival(oldRides, newRides):
 
 
 def generatePickup(oldRides, newRides):
+    """This function returns for all new rides: 'earliest_pickup_expectation'(= dispatched_at + 3 min), 'pickup_at' (= arrived_at + random boarding time based on probability distribution in origional data) and the following 3 timestamps 'arriving_push', 'pickup_eta' and 'pickup_first_eta' based on probability distributions of their deviation around pickup_at in original data.
+
+    Args:
+        oldRides (DataFrame): DataFrame containing all origianl past rides - basis for building probability
+        newRides (DataFrame): DataFrame containing an intermediate result within the process of ride simulation
+
+    Returns:
+        DataFrame: Returns the following DataFrame columns ["arriving_push", "earliest_pickup_expectation",  "pickup_at", "pickup_eta", "pickup_first_eta"] for the new rides.
+    """
+
     # get needed information regarding the pickup in old data
     pickupOld = pd.DataFrame(
         oldRides[
@@ -1010,6 +1085,17 @@ def generatePickup(oldRides, newRides):
 
 
 def generateDropoff(oldRides, newRides, routes):
+    """This function returns for all new rides: 'dropoff_at'(= pickup_at + average ridetime (+/- random deviation up to 20% possible) of the most similar rides, otherwise shortest_ridetime) and the following 2 timestamps "dropoff_eta" and "dropoff_first_eta" based on probability distributions of their deviation around dropoff_at in original data.
+
+    Args:
+        oldRides (DataFrame): DataFrame containing all origianl past rides - basis for building probability
+        newRides (DataFrame): DataFrame containing an intermediate result within the process of ride simulation
+        routes (DataFrame): DataFrame containing all routes between all MoDStops
+
+    Returns:
+        DataFrame: Returns the following DataFrame columns ["dropoff_at", "dropoff_eta", "dropoff_first_eta"] for the new rides.
+    """
+
     # get needed information regarding the dropoff in old data
     dropoffOld = pd.DataFrame(
         oldRides[
@@ -1211,6 +1297,16 @@ def generateDropoff(oldRides, newRides, routes):
 # general function that returns n random values based on the probability distribution of a certain column
 # used for the following ride attributes: number_of_passenger, free_ride, payment_type, arrival_indicator, rating
 def generateValues(column_name, df, newRides):
+    """This function generates a probability distribution for discrete values in a specified column in a DataFrame. Then, n random choices are made and returned in a list.
+
+    Args:
+        column_name (String): Name of the column for which a distribution is to be created and values are to be generated
+        df (DataFrame): Pandas DataFrame that contains the column for which a distribution is to be created
+        newRides (DataFrame): DataFrame containing an intermediate result within the process of ride simulation; the df length represents the amount of values to be generated.
+
+    Returns:
+        List: n random choices from a generated probability distribution of discrete values.
+    """
     dist = (
         df[column_name]
         .value_counts()
@@ -1223,8 +1319,17 @@ def generateValues(column_name, df, newRides):
     )
 
 
-# Attributes: ['pickup_arrival_time', 'arrival_deviation', 'waiting_time', 'boarding_time', 'ride_time', 'trip_time', 'shortest_ridetime', 'delay', 'longer_route_factor']
+# Attributes: ['arrival_deviation', 'waiting_time', 'boarding_time', 'ride_time', 'trip_time', 'delay', 'longer_route_factor']
 def generateTimeperiods(newRides):
+    """This function calculates the following time periods / KPIs for all new rides: 'pickup_arrival_time', 'arrival_deviation', 'waiting_time', 'boarding_time', 'ride_time', 'trip_time', 'shortest_ridetime', 'delay', 'longer_route_factor'
+
+    Args:
+        newRides (DataFrame): DataFrame containing an intermediate result within the process of ride simulation; the df length represents the amount of values to be generated.
+
+    Returns:
+        DataFrame: Returns the following DataFrame columns ['arrival_deviation', 'waiting_time', 'boarding_time', 'ride_time', 'trip_time', 'delay', 'longer_route_factor'] for the new rides.
+    """
+
     # Attribute: 'arrival_deviation'
     newRides["arrival_deviation"] = newRides.apply(
         lambda row: (
@@ -1306,6 +1411,20 @@ def generateTimeperiods(newRides):
 
 
 def generateRideSpecs(oldRides, ridestops, routes, n, month, year):
+    """This function creates an empty MoD ride data DataFrame and incrementally fills the attributes for n simulated rides based on probability distributions in the original data.
+
+    Args:
+        oldRides (DataFrame): DataFrame containing all origianl past rides - basis for building probability
+        ridestops (DataFrame): DataFrame containing all MoDStops
+        routes (DataFrame): DataFrame containing all routes between all MoDStops
+        n (Integer): Defines the amount of rides that are to simulated
+        month (Integer): Defines the month for which rides should be simulated. January=1 .. December=12
+        year (Integer): Defines the year for which rides should be simulated
+
+    Returns:
+        DataFrame: DataFrame consisting of details of n simulated rides.
+    """
+
     timestamp = str(round(time.time()))
     newRides = pd.DataFrame(columns=oldRides.columns)
     oldRides = oldRides[oldRides["state"] == "completed"]
