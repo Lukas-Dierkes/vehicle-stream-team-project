@@ -2,6 +2,7 @@ import collections
 import json
 import os
 import time
+import warnings
 from datetime import datetime as dt
 
 import geopandas as gpd
@@ -1196,6 +1197,7 @@ def generateDropoff(oldRides, newRides, routes):
                 & (dropoffOld["workday"] == row["workday"])
                 & (dropoffOld["hour"].isin(row["timeframe"]))
             ]["ride_time"].mean()
+            * np.random.uniform(0.9, 1.1)  # mean +/- up to 10% randomness
         )
         if len(
             dropoffOld[
@@ -1214,6 +1216,7 @@ def generateDropoff(oldRides, newRides, routes):
                 & (dropoffOld["dropoff_address"] == row["dropoff_address"])
                 & (dropoffOld["hour"].isin(row["timeframe"]))
             ]["ride_time"].mean()
+            * np.random.uniform(0.9, 1.1)  # mean +/- up to 10% randomness
         )
         if len(
             dropoffOld[
@@ -1230,6 +1233,7 @@ def generateDropoff(oldRides, newRides, routes):
                 (dropoffOld["pickup_address"] == row["pickup_address"])
                 & (dropoffOld["dropoff_address"] == row["dropoff_address"])
             ]["ride_time"].mean()
+            * np.random.uniform(0.9, 1.1)  # mean +/- up to 10% randomness
         )
         if len(
             dropoffOld[
@@ -1321,7 +1325,7 @@ def generateValues(column_name, df, newRides):
 
 # Attributes: ['arrival_deviation', 'waiting_time', 'boarding_time', 'ride_time', 'trip_time', 'delay', 'longer_route_factor']
 def generateTimeperiods(newRides):
-    """This function calculates the following time periods / KPIs for all new rides: 'pickup_arrival_time', 'arrival_deviation', 'waiting_time', 'boarding_time', 'ride_time', 'trip_time', 'shortest_ridetime', 'delay', 'longer_route_factor'
+    """This function calculates the following time periods / KPIs for all new rides: 'arrival_deviation', 'waiting_time', 'boarding_time', 'ride_time', 'trip_time', 'delay', 'longer_route_factor'
 
     Args:
         newRides (DataFrame): DataFrame containing an intermediate result within the process of ride simulation; the df length represents the amount of values to be generated.
@@ -1426,6 +1430,7 @@ def generateRideSpecs(oldRides, ridestops, routes, n, month, year):
     """
 
     timestamp = str(round(time.time()))
+    warnings.filterwarnings("ignore")
     newRides = pd.DataFrame(columns=oldRides.columns)
     oldRides = oldRides[oldRides["state"] == "completed"]
     newRides["id"] = [timestamp + "-" + str(x) for x in list(range(0, n))]
@@ -1480,6 +1485,8 @@ def generateRideSpecs(oldRides, ridestops, routes, n, month, year):
             "longer_route_factor",
         ]
     ] = generateTimeperiods(newRides)
+    warnings.filterwarnings("default")
+
     return newRides
 
 
