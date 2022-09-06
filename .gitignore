@@ -1,3 +1,17 @@
 data/other/MoDstops+Preismodell.xlsx
 *.csv
 *.xlsx
+.isort.cfg
+.vscode/
+build/lib/vehicle_stream_pipeline/metrics_for_regression.py
+build/lib/vehicle_stream_pipeline/oneDriveConnection.py
+build/lib/vehicle_stream_pipeline/ride_simulation.py
+data/local_path
+path
+vehicle_stream_pipeline/6C83A200
+vehicle_stream_pipeline/9F14A200
+vehicle_stream_pipeline/__pycache__/
+vehicle_stream_pipeline/dashboard/pages/__pycache__/ride_simulation.cpython-39.pyc
+vehicle_stream_pipeline/dashboard/pages/__pycache__/ride_simulation_analysis.cpython-39.pyc
+vehicle_stream_pipeline/stats_for_presentation.ipynb
+vehiclestream.egg-info/
