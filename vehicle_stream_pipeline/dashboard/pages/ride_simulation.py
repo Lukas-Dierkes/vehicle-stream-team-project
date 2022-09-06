@@ -22,6 +22,7 @@ dash.register_page(__name__)
 #     f"{repo}/data/other/MoDstops+Preismodell.xlsx", sheet_name="MoDstops"
 # )
 
+
 # df_edges = pd.read_excel(
 #     f"{repo}/data/other/MoDstops+Preismodell.xlsx", sheet_name="Liste 2022"
 # )
@@ -32,6 +33,7 @@ dash.register_page(__name__)
 rides_df = pd.read_csv(f"{repo}/data/cleaning/data_cleaned.csv")
 rides_df = rides_df[(rides_df["state"] == "completed")]
 rides_df["scheduled_to"] = pd.to_datetime(rides_df["scheduled_to"])
+
 
 # sim_df_small = pd.read_csv(f"{repo}/data/sim_rides_1808_9.csv")
 sim_df_large = pd.read_csv(f"{repo}/data/sim_rides_500k.csv")

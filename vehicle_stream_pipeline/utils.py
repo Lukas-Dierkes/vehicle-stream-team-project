@@ -16,6 +16,17 @@ from scipy.stats import truncnorm
 
 
 def create_overall_dataframes(path):
+    """This function creates three big dataframes out of the given excel files from Mod so we combine the data from all months.
+    1: kpi_combined.csv: That is the monthly kpi-stats combined. We rarely use this data
+    2. mtd_combined.csv: That (should) contain all the rides combined for each day of the month according to excel sheet.
+    3. rides_combined: Here we iterated over each day (excel sheet) and collected the data for each day on our own. Suprisingly this is different to the mtd_combined.csv and seems like that this data is more accurate. So we will use this dataframe for further analysis.
+
+    Args:
+        path (str): Path to the folder which stores the excel sheets.
+
+    Returns:
+        dict: The combined three dataframes.
+    """
     directory = os.fsencode(path)
     df_rides = pd.DataFrame()
     df_kpi = pd.DataFrame()
@@ -49,6 +60,15 @@ def create_overall_dataframes(path):
 
 
 def get_geo_cordinates_for_path(df_stops, path):
+    """Returns the geo coordinates (long, lat) for each spot in the given dataframe.
+
+    Args:
+        df_stops (pandas DataFrame): dataframe with each stop
+        path (str): Path where to find the excel sheet which stores each stop.
+
+    Returns:
+        tuple(list, list): Returns two lists, one for all the latitudes of the spots and one for the longitutes of the spots.
+    """
     stop_latitudes = []
     stop_longitudes = []
     for stop in path:
@@ -63,6 +83,15 @@ def get_geo_cordinates_for_path(df_stops, path):
 
 
 def calculate_graph(drives):
+    """Creates the graph which is the basis for our model.
+
+    Args:
+        Drives (pandas DataFrame): Dataframe contains the avgeage time to destination from each spot to each other spot.
+
+    Returns:
+        Networkx graph: Return the weihted graph where each node is one spot and an edge shows whether there is an existing drive between these two routes.
+        The edge weight is based on how often this route was driven before.
+    """
     G = nx.from_pandas_edgelist(
         drives,
         source="pickup_address",
@@ -74,6 +103,17 @@ def calculate_graph(drives):
 
 
 def calculate_drives(df, start_date, end_date):
+    """Calculates for each combination of spots the average ride time and and the average waiting time and stores it in a dataframe
+    This dataframe is the bases for our graph.
+
+    Args:
+        df (pandas DataFrame): dataframe containing all drives from MoD
+        start_date (_type_): used for filtering the dataframe so that only drives are stored that are
+        end_date (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     days = (end_date - start_date).days + 1
     drives = pd.DataFrame(
         df.groupby(["pickup_address", "dropoff_address"], group_keys=False)
@@ -100,6 +140,18 @@ def calculate_drives(df, start_date, end_date):
 
 
 def get_shortest_ride(startpoint, endpoint, graph):
+    """Calculates the shortest path from a given startpoint to a given endpoint
+    and further calculates the shortest time based on the edge weight.
+
+    Args:
+        startpoint (str): Startpoint of the shortest path.
+        endpoint (str): Endpoint of the shortest path.
+        graph (networkx graph): Graph which is used to calculate the shortest path
+
+    Returns:
+        tuple(list[str], float): Returns a tuple which first item is a list conataining all intermediate spots to get to the endpoint from the startpoint.
+        The second item it the shortest time which is needed for that path.
+    """
     if startpoint not in graph:
         return ("Not in graph", -1)
     elif endpoint not in graph:
@@ -120,6 +172,17 @@ def get_shortest_ride(startpoint, endpoint, graph):
 
 
 def get_hotspots(df_edges, drives, n=10):
+    """Calculates the hotspots based on all combinations of shortest paths between two spots.
+    Therefore we count how often a spot is an intermediate, starting or final spot in a all shortest paths.
+
+    Args:
+        df_edges (pandas DataFrame): Dataframe containing all combinations of spots.
+        drives (pandas DataFrame): Dataframe containing all shortest rides between given spost.
+        n (int, optional): Define how many spots will be returned. Defaults to 10.
+
+    Returns:
+        list(str): List of the calculated hotspts.
+    """
 
     graph = calculate_graph(drives)
     df_edges.rename(columns={"Start #": "start_id", "Ende #": "end_id"}, inplace=True)
@@ -140,6 +203,18 @@ def get_hotspots(df_edges, drives, n=10):
 
 
 def add_drone_flights(df_edges, drives, drone_spots=[1008], radius=500):
+    """Adding drone flights to the current drives. Therefore drones will be placed on given spots so that they can reach other spots in a given radius.
+    We assume that drone flights have no waiting time.
+
+    Args:
+        df_edges (pandas DataFrame): Dataframe containing all combinations of spots.
+        drives (pandas DataFrame): Dataframe containing all shortest rides between given spost.
+        drone_spots (list, optional): List where drones should be placed. Defaults to [1008].
+        radius (int, optional): Radius which drones are allowed to fly in. Defaults to 500.
+
+    Returns:
+        pandas DataFrame: returns a dataframe containing the normal drives plus the added drone flights
+    """
     drone_flights = df_edges.iloc[:, :6]
     drone_flights.drop(["Start Name", "Ende Name", "Route [m]"], axis=1, inplace=True)
     drone_flights.rename(columns={"Luftlinie [m]": "Luftlinie"}, inplace=True)
@@ -218,20 +293,24 @@ def add_drone_flights(df_edges, drives, drone_spots=[1008], radius=500):
     return drives_w_flights
 
 
-# copied from https://stackoverflow.com/questions/68946831/draw-a-polygon-around-point-in-scattermapbox-using-python
-def poi_poly(
-    df,
+# copied and from https://stackoverflow.com/questions/68946831/draw-a-polygon-around-point-in-scattermapbox-using-python
+def create_circle(
     radius=500,
-    # ,{"lat": 49.3517, "lon": 8.13664}
-    poi={"Longitude": 8.13664, "Latitude": 49.3517},
-    lon_col="MoDStop Long",
-    lat_col="MoDStop Lat",
-    include_radius_poly=False,
+    position={"Longitude": 8.13664, "Latitude": 49.3517},
 ):
+    """Creates a circle around a spot. So we can visualize the radius of a dronespot.
+
+    Args:
+        radius (int, optional): Length of the radius. Defaults to 500.
+        position (dict, optional): position of the dronepot define in latitude and longitude. Defaults to {"Longitude": 8.13664, "Latitude": 49.3517}.
+
+    Returns:
+        pandas GeoDataFrame: returns a geo dataframe containing information on how to calculate the circles for the given spot
+    """
 
     # generate a geopandas data frame of the POI
     gdfpoi = gpd.GeoDataFrame(
-        geometry=[shapely.geometry.Point(poi["Longitude"], poi["Latitude"])],
+        geometry=[shapely.geometry.Point(position["Longitude"], position["Latitude"])],
         crs="EPSG:4326",
     )
     # extend point to radius defined (a polygon).  Use UTM so that distances work, then back to WSG84
@@ -253,12 +332,21 @@ def poi_poly(
                     ).unary_union.convex_hull
                 ]
             ),
-            gpd.GeoDataFrame(geometry=gdfpoi if include_radius_poly else None),
+            gpd.GeoDataFrame(geometry=gdfpoi if False else None),
         ]
     )
 
 
 def create_circles_around_drone_spots(df, radius=500):
+    """Creates a list containing information for the radius which is drawn around the dronespot for each dronepot.
+
+    Args:
+        df (pandas DataFrame): dataframe containing all spots where drones are placed.
+        radius (int, optional): Radius which drones are allowed to fly in.. Defaults to 500.
+
+    Returns:
+        list[dicts]: Containing meta information for the circles to be created in the visualization
+    """
     layers = []
     for index, row in df.iterrows():
         current_spot = {
@@ -269,7 +357,7 @@ def create_circles_around_drone_spots(df, radius=500):
         layers.append(
             {
                 "source": json.loads(
-                    poi_poly(None, poi=current_spot, radius=radius).to_json()
+                    create_circle(position=current_spot, radius=radius).to_json()
                 ),
                 "below": "traces",
                 "type": "line",
@@ -282,6 +370,17 @@ def create_circles_around_drone_spots(df, radius=500):
 
 
 def get_route_information(drives, path, df_stops):
+    """Creates a text for the dashbaord containing the path including all intermediate spots and for each edge on the path the shortest time.
+
+
+    Args:
+        drives (_type_): _description_
+        path (list): _description_
+        df_stops (pandas DataFrame): _description_
+
+    Returns:
+        _type_: _description_
+    """
     times_and_path = []
     text = ""
     for i in range(len(path) - 1):
@@ -1557,3 +1656,29 @@ def transformForBar(
 
     top_df = pd.concat([top_df_value_counts_rides, top_df_sim_s, top_df_sim_l])
     return top_df
+
+
+def calculate_number_drivers(df, hour, comined_rides_factor=0.3):
+    # Calculate how many drives a driver can to be hour
+    df["driver_time"] = df["dropoff_at"] - df["dispatched_at"]
+    df["driver_time"] = df["driver_time"].dt.seconds / 60
+    avg_driver_time = df["driver_time"].mean()
+    drives_per_hour = 60 / avg_driver_time
+
+    # Calculate how many parallel drives per hour exists
+    df["driver_time"] = df["dropoff_at"] - df["dispatched_at"]
+    parallel_drives = df.resample("H", on="scheduled_to").id.count().reset_index()
+    parallel_drives.rename(columns={"id": "parallel_drives"}, inplace=True)
+    parallel_drives = parallel_drives[parallel_drives["scheduled_to"].dt.hour == hour]
+
+    # Calculate average drives for given hour
+
+    average_drives = parallel_drives["parallel_drives"].mean()
+
+    average_drives = average_drives - average_drives * comined_rides_factor
+
+    # Calculate max drives for given hour
+    max_drives = parallel_drives["parallel_drives"].max()
+    max_drives = max_drives - max_drives * comined_rides_factor
+
+    return (average_drives / drives_per_hour, average_drives)
