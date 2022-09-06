@@ -201,7 +201,7 @@ def update_charts(max_days=5, current_metric="avg_w/o_drones"):
         x=graph_metrics_df_1[current_metric],
         y=utils.regression_function(
             graph_metrics_df_1[current_metric],
-            *utils.get_opt_parameter(graph_metrics_df_1),
+            *utils.get_opt_parameter(graph_metrics_df_1, current_metric),
         ),
         color_discrete_sequence=["DarkCyan"],
     )

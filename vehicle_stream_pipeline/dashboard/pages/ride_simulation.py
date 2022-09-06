@@ -33,8 +33,8 @@ rides_df = pd.read_csv(f"{repo}/data/cleaning/data_cleaned.csv")
 rides_df = rides_df[(rides_df["state"] == "completed")]
 rides_df["scheduled_to"] = pd.to_datetime(rides_df["scheduled_to"])
 
-# sim_df_small = pd.read_csv(f"{repo}/data/sim_rides_1808_9.csv")
-sim_df_large = pd.read_csv(f"{repo}/data/sim_rides_500k.csv")
+# sim_df_small = pd.read_csv(f"{repo}/data/simulated/sim_rides_1808_9.csv")
+sim_df_large = pd.read_csv(f"{repo}/data/simulated/sim_rides_500k.csv")
 sim_df_large["scheduled_to"] = pd.to_datetime(sim_df_large["scheduled_to"])
 
 
