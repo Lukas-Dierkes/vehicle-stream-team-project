@@ -1322,3 +1322,97 @@ def generateRideSpecs(oldRides, ridestops, routes, n, month, year):
         ]
     ] = generateTimeperiods(newRides)
     return newRides
+
+
+def getDeliveryTimes(rides_simulated, df_edges, month_diff, drone_radius=500):
+    """Takes an input dateframe of rides (simulated or not simulated), transforms the data into graphs and applies diameter and average shortest path calculations.
+        The output is used for regression of diameter and average shortest path
+
+    Args:
+        rides_simulated (DataFrame): DataFrame containing Rides in format provided by MoD
+        drone_radius (int, optional): Radius in meter where drone can connect stops directly. Defaults to 500.
+
+    Returns:
+        List: A list with the values ["#_simulated_rides", "diameter_w/o_drones", "avg_w/o_drones", "diameter_with_drones", "avg_with_drones"] for the given dataframe
+    """
+
+    rides_simulated["scheduled_to"] = pd.to_datetime(rides_simulated["scheduled_to"])
+    start_date = rides_simulated["scheduled_to"].min()
+    end_date = rides_simulated["scheduled_to"].max()
+
+    # rides without drones: calculate graph, diameter and average_shortest_path
+    drives_without_drones = calculate_drives(rides_simulated, start_date, end_date)
+    graph_without_drones = calculate_graph(drives_without_drones)
+    # graph needs to be strongly connected to calcutate diameter
+    if nx.is_strongly_connected(graph_without_drones):
+        diameter = nx.diameter(graph_without_drones, weight="avg_time_to_destination")
+    else:
+        diameter = 0
+    avg = nx.average_shortest_path_length(
+        graph_without_drones, weight="avg_time_to_destination"
+    )
+
+    # rides with drones: calculate graph, diameter and average_shortest_path
+    drone_spots = [15011, 13001, 2002, 11007, 4016, 1002, 3020, 9019, 9005]
+    drives_with_drones = add_drone_flights(
+        df_edges, drives_without_drones, drone_spots=drone_spots, radius=drone_radius
+    )
+    # graph needs to be strongly connected to calcutate diameter
+    graph_with_drones = calculate_graph(drives_with_drones)
+    if nx.is_strongly_connected(graph_with_drones):
+        diameter_with_drones = nx.diameter(
+            graph_with_drones, weight="avg_time_to_destination"
+        )
+    else:
+        diameter = 0
+    avg_with_drones = nx.average_shortest_path_length(
+        graph_with_drones, weight="avg_time_to_destination"
+    )
+
+    return [
+        len(rides_simulated) / month_diff,
+        diameter,
+        avg,
+        diameter_with_drones,
+        avg_with_drones,
+    ]
+
+
+def getRegressionMetrics(rides_simulated, df_edges, stepsize=15000):
+    """Takes an input dateframe of rides (simulated or not simulated), applies getDeliveryTimes() for increasing sample sizes of simulated rides to built one dataframe for regression
+        The output is a dataframe of increasing sample sizes of simulated rides and used for regression of diameter and average shortest path
+
+    Args:
+        rides_simulated (_type_): DataFrame containing Rides in format provided by MoD
+        stepsize (int, optional): Stepsize determining in which increasing order samples of the original df will be created. Defaults to 15000.
+
+    Returns:
+        DataFrame: DataFrame containing the metrics ["#_simulated_rides", "diameter_w/o_drones", "avg_w/o_drones", "diameter_with_drones", "avg_with_drones"] for increasing number of simulated rides
+    """
+    # month_diff used to nomalize number of rides simulated to 1 month
+    rides_simulated["scheduled_to"] = pd.to_datetime(rides_simulated["scheduled_to"])
+    start_date = rides_simulated["scheduled_to"].min()
+    end_date = rides_simulated["scheduled_to"].max()
+    month_diff = (
+        (end_date.year - start_date.year) * 12 + end_date.month - start_date.month
+    )
+
+    lower_boundary = 10000
+    upper_boundary = len(rides_simulated)
+    results_df = pd.DataFrame(
+        columns=[
+            "#_simulated_rides",
+            "diameter_w/o_drones",
+            "avg_w/o_drones",
+            "diameter_with_drones",
+            "avg_with_drones",
+        ]
+    )
+
+    for n in list(range(lower_boundary, upper_boundary, stepsize)):
+        current_sample_df = rides_simulated.sample(n=n)
+        results_df.loc[len(results_df)] = getDeliveryTimes(
+            current_sample_df, df_edges, month_diff
+        )
+
+    return results_df
