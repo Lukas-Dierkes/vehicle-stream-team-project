@@ -13,6 +13,7 @@ from dash import MATCH, Dash, Input, Output, callback, dcc, html
 from vehicle_stream_pipeline import utils
 
 repo = git.Repo(".", search_parent_directories=True).git.rev_parse("--show-toplevel")
+graph_metrics_df = pd.read_csv(f"{repo}/data/regression/graph_metrics_5Ksteps.csv")
 
 # Code from: https://github.com/plotly/dash-labs/tree/main/docs/demos/multi_page_example1
 dash.register_page(__name__)
@@ -113,12 +114,119 @@ controls = dbc.Card(
 
 layout = dbc.Container(
     [
-        html.H1("MoD Stop Analysis", style={"textAlign": "center"}),
-        html.Hr(),
+        html.H1("Ride Simulation Analysis", style={"textAlign": "center"}),
+        html.Div(
+            [
+                html.Label("Maximum Delivery Days"),
+                dcc.Input(
+                    id="input_number_max_days",
+                    type="number",
+                    value=5,
+                ),
+            ],
+            className="d-grid gap-2 col-6 mx-auto",
+        ),
+        html.Div(
+            [
+                html.Label("Graph Metric"),
+                dcc.Dropdown(
+                    id="dropdown_graph_metric",
+                    options=[
+                        {
+                            "label": "Maximum Delivery Days without Drones",
+                            "value": "diameter_w/o_drones",
+                        },
+                        {
+                            "label": "Maximum Delivery Days with Drones",
+                            "value": "diameter_with_drones",
+                        },
+                        {
+                            "label": "Average Delivery Days without Drones",
+                            "value": "avg_w/o_drones",
+                        },
+                        {
+                            "label": "Average Delivery Days with Drones",
+                            "value": "avg_with_drones",
+                        },
+                    ],
+                    value="avg_w/o_drones",
+                    clearable=False,
+                ),
+            ],
+            className="d-grid gap-2 col-6 mx-auto",
+        ),
         dbc.Row(
             [
-                dbc.Col([controls], width=3),
+                dbc.Col(
+                    dcc.Graph(id="needed_rides_plot"),
+                    # style={"height": "820px"},
+                ),
             ]
         ),
     ]
 )
+
+
+@callback(
+    [
+        Output("needed_rides_plot", "figure"),
+    ],
+    [
+        Input("input_number_max_days", "value"),
+        Input("dropdown_graph_metric", "value"),
+    ],
+)
+def update_charts(max_days=5, current_metric="avg_w/o_drones"):
+
+    global graph_metrics_df
+
+    graph_metrics_df_1 = graph_metrics_df.copy()
+    max_days = max_days
+    current_metric = current_metric
+    needed_rides = utils.get_rides_num(max_days, graph_metrics_df_1, current_metric)
+
+    # Update Figure diplaying Orginal Data Scatter Plot, Regression and max_days_line
+    # Scatter Plot of Orginal Rides Data
+    needed_rides_fig1 = px.scatter(
+        graph_metrics_df_1,
+        x=current_metric,
+        y="#_simulated_rides",
+        color_discrete_sequence=["DarkKhaki"],
+        title="Break Even of Rides",
+    )
+    needed_rides_fig1["data"][0]["name"] = "Simulated Rides Data"
+    needed_rides_fig1["data"][0]["showlegend"] = True
+    # Line Plot of Regressed Data
+    needed_rides_fig2 = px.line(
+        x=graph_metrics_df_1[current_metric],
+        y=utils.regression_function(
+            graph_metrics_df_1[current_metric],
+            *utils.get_opt_parameter(graph_metrics_df_1),
+        ),
+        color_discrete_sequence=["DarkCyan"],
+    )
+    needed_rides_fig2["data"][0]["name"] = "Regression of Rides Data"
+    needed_rides_fig2["data"][0]["showlegend"] = True
+    # Line Plot working as cursor for current max days
+    needed_rides_fig3 = px.line(
+        x=[max_days, max_days], y=[0, needed_rides], color_discrete_sequence=["tomato"]
+    )
+    needed_rides_fig3["data"][0]["name"] = "Max Days for Delivery"
+    needed_rides_fig3["data"][0]["showlegend"] = True
+    needed_rides_fig4 = px.line(
+        x=[0, max_days],
+        y=[needed_rides, needed_rides],
+        color_discrete_sequence=["tomato"],
+    )
+
+    needed_rides_fig = go.Figure(
+        data=needed_rides_fig1.data
+        + needed_rides_fig2.data
+        + needed_rides_fig3.data
+        + needed_rides_fig4.data,
+        layout=needed_rides_fig1.layout,
+    )
+
+    return [
+        needed_rides_fig,
+    ]  # output fig needs to be list in order work
