@@ -32,7 +32,7 @@ color_rides = "forestgreen"
 color_rides_sim_s = "lightsteelblue"
 color_rides_sim_s_2 = "cornflowerblue"
 color_rides_sim_l = "navy"
-color_sequence = [color_rides, color_rides_sim_s, color_rides_sim_l]
+color_sequence = [color_rides, color_rides_sim_l]
 color_sequence_2 = [color_rides_sim_s, color_rides]
 
 
@@ -65,10 +65,6 @@ layout = dbc.Container(
                             [
                                 dbc.Col(
                                     dcc.Graph(id="routes_pie_1"),
-                                    # style={"height": "820px"},
-                                ),
-                                dbc.Col(
-                                    dcc.Graph(id="routes_pie_2"),
                                     # style={"height": "820px"},
                                 ),
                             ]
@@ -146,7 +142,6 @@ layout = dbc.Container(
     [
         Output("routes_bar", "figure"),
         Output("routes_pie_1", "figure"),
-        Output("routes_pie_2", "figure"),
         Output("arrival_deviation", "figure"),
         Output("waiting_time", "figure"),
         Output("boarding_time", "figure"),
@@ -163,33 +158,18 @@ layout = dbc.Container(
 def update_charts(number_simulations=100):
     global sim_df_large
     sim_df_large_1 = sim_df_large.sample(number_simulations)
-    sim_df_small = sim_df_large_1.sample(100)
 
     # dataframes for Distplots
     dist_df = utils.transformForDist(rides_df, "Original Rides")
-    dist_df_sim_s = utils.transformForDist(sim_df_small, "Simulated Rides small")
     dist_df_sim_l = utils.transformForDist(sim_df_large_1, "Simulated Rides large")
 
     # dataframe for Boxplot
-    boxplot_df = pd.concat([dist_df, dist_df_sim_s, dist_df_sim_l])
+    boxplot_df = pd.concat([dist_df, dist_df_sim_l])
 
     # dataframe for Piechart Route Visualization
     df_value_counts_rides = utils.transformForRoute(dist_df, "Original Rides")
-    df_value_counts_sim_s = utils.transformForRoute(
-        dist_df_sim_s, "Simulated Rides small"
-    )
     df_value_counts_sim_l = utils.transformForRoute(
         dist_df_sim_l, "Simulated Rides large"
-    )
-    known_route_s = (
-        df_value_counts_sim_s["route"]
-        .loc[df_value_counts_sim_s["route"].isin(df_value_counts_rides["route"])]
-        .count()
-    )
-    unknown_route_s = (
-        df_value_counts_sim_s["route"]
-        .loc[~df_value_counts_sim_s["route"].isin(df_value_counts_rides["route"])]
-        .count()
     )
     known_route_l = (
         df_value_counts_sim_l["route"]
@@ -204,9 +184,7 @@ def update_charts(number_simulations=100):
 
     # print(df_value_counts_rides.shape)
     # dataframe for Barchart Route Visualization
-    top_df = utils.transformForBar(
-        10, df_value_counts_rides, df_value_counts_sim_s, df_value_counts_sim_l
-    )
+    top_df = utils.transformForBar(10, df_value_counts_rides, df_value_counts_sim_l)
     # figure bar chart for routes
     fig_routes_bar = px.bar(
         data_frame=top_df,
@@ -221,20 +199,12 @@ def update_charts(number_simulations=100):
 
     # figures for pie charts for routes
     labels1 = ["Known Route", "Unknown Route"]
-    values1 = [known_route_s, unknown_route_s]
-    labels2 = ["Known Route", "Unknown Route"]
-    values2 = [known_route_l, unknown_route_l]
+    values1 = [known_route_l, unknown_route_l]
     fig_routes_pie_1 = px.pie(
         values=values1,
         names=labels1,
         color_discrete_sequence=color_sequence_2,
         title="Route selection 9k simulated rides",
-    )
-    fig_routes_pie_2 = px.pie(
-        values=values2,
-        names=labels2,
-        color_discrete_sequence=color_sequence,
-        title="Route selection 600k simulated rides",
     )
 
     # figures for boxplots of times
@@ -300,12 +270,11 @@ def update_charts(number_simulations=100):
 
     # figures for distplots of rel_frequency over day and week
 
-    group_labels = ["Original Rides", "Simulated Rides small", "Simulated Rides large"]
+    group_labels = ["Original Rides", "Simulated Rides large"]
 
     current_attribute = "hour"
     hist_data = [
         dist_df[current_attribute],
-        dist_df_sim_s[current_attribute],
         dist_df_sim_l[current_attribute],
     ]
     fig_dist_hour = ff.create_distplot(
@@ -316,7 +285,6 @@ def update_charts(number_simulations=100):
     current_attribute = "day_of_week"
     hist_data = [
         dist_df[current_attribute],
-        dist_df_sim_s[current_attribute],
         dist_df_sim_l[current_attribute],
     ]
     fig_dist_week = ff.create_distplot(
@@ -327,7 +295,6 @@ def update_charts(number_simulations=100):
     return (
         fig_routes_bar,
         fig_routes_pie_1,
-        fig_routes_pie_2,
         fig_box_arrival_deviation,
         fig_box_waiting_time,
         fig_box_boarding_time,

@@ -1592,6 +1592,16 @@ def generateRideSpecs(oldRides, ridestops, routes, n, month, year):
 
 # creates new Time Attributes out of Timestamp for Distplots
 def transformForDist(input_df, dataset_name):
+    """Divides pickup_at Timestamp to hour, month, day_of_month, year, week, day of week and adds it to input_df to create distribution plot.
+        Add attributes dataset name and route (pickup_adress+dropoff_adress)
+
+    Args:
+        input_df (DataFrame): Rides Data in format of MoD
+        dataset_name (str): Either Orignal or Simulated - later used for Grouping and Plot label
+
+    Returns:
+        DataFrame: DataFrame which can be used for DistPlots
+    """
     dist_df = input_df.copy()
     dist_df["dataset"] = dataset_name
     dist_df["route"] = dist_df["pickup_address"].astype(str) + dist_df[
@@ -1616,6 +1626,15 @@ def transformForDist(input_df, dataset_name):
 
 # transform Df for Routes visualisations
 def transformForRoute(dist_df_input, dataset_name):
+    """Performs absolute and relative value counts for routes to create Dataframe which will be used for Route plot
+
+    Args:
+        dist_df_input (DataFrame): Dataframe Output of the Function TransformForDist - needs to have attribute "route" (pickup_adress+dropoff_adress)
+        dataset_name (_type_): Either Orignal or Simulated - later used for Grouping and Plot label
+
+    Returns:
+        DataFrame: DataFrame which will be used for Route plot with attributes ["route", "rel_counts", "abs_counts","dataset"]
+    """
     input_df = dist_df_input.copy()
     df_value_counts_rel = pd.DataFrame(input_df["route"].value_counts(normalize=True))
     df_value_counts_abs = pd.DataFrame(input_df["route"].value_counts())
@@ -1627,35 +1646,36 @@ def transformForRoute(dist_df_input, dataset_name):
     return df_value_counts
 
 
-def transformForBar(
-    n, df_value_counts_rides, df_value_counts_sim_s, df_value_counts_sim_l
-):
+def transformForBar(n, df_value_counts_rides, df_value_counts_sim_l):
+    """Adds information of top n abs counts for routes of original rides. Then compares if the top n routes of simulated rides are in the top n of the original rides. Output is used for Bar Chart.
+
+    Args:
+        n (int): top n most frequent routes
+        df_value_counts_rides (DataFrame): Dataframe Output of the Function TransformForDist - Original Rides
+        df_value_counts_sim_l (DataFrame): Dataframe Output of the Function TransformForDist - Simulated Rides
+
+    Returns:
+        DataFrame: Filtered DataFrame which will be used for Route plot bar chart with attributes ["route", "rel_counts", "abs_counts","dataset","own_top_n"]
+    """
 
     # df with n_largest abs_rides - foundation for top_df, used for simulated rides to find matches
     top_df_value_counts_rides = df_value_counts_rides.nlargest(
         n=n, columns="abs_counts"
     )
-    top_df_value_counts_rides["own_top_10"] = True
+    top_df_value_counts_rides["own_top_n"] = True
 
     # df with n_largest of simulated rides - used to see if n_largest of sim match n_largest of orig rides
-    nlargest_sim_s = df_value_counts_sim_s.nlargest(n=n, columns="abs_counts")
     nlargest_sim_l = df_value_counts_sim_l.nlargest(n=n, columns="abs_counts")
 
     # top_df for sim rides - contain attribute "own top 10" which shows if route is in the own 10 of the respective sim rides
-    top_df_sim_s = df_value_counts_sim_s.loc[
-        df_value_counts_sim_s["route"].isin(top_df_value_counts_rides["route"])
-    ]
-    top_df_sim_s["own_top_10"] = top_df_sim_s["route"].apply(
-        lambda x: nlargest_sim_s["route"].eq(x).any()
-    )
     top_df_sim_l = df_value_counts_sim_l.loc[
         df_value_counts_sim_l["route"].isin(top_df_value_counts_rides["route"])
     ]
-    top_df_sim_l["own_top_10"] = top_df_sim_l["route"].apply(
+    top_df_sim_l["own_top_n"] = top_df_sim_l["route"].apply(
         lambda x: nlargest_sim_l["route"].eq(x).any()
     )
 
-    top_df = pd.concat([top_df_value_counts_rides, top_df_sim_s, top_df_sim_l])
+    top_df = pd.concat([top_df_value_counts_rides, top_df_sim_l])
     return top_df
 
 
