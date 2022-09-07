@@ -572,6 +572,9 @@ def clean_time_periods(df):
         else np.NaN,
         axis=1,
     )
+    df["arrival_deviation"] = np.where(
+        df["arrival_deviation"] < 0, 0, df["arrival_deviation"]
+    )
 
     # Attribute: 'waiting_time'
     df["waiting_time"] = df.apply(
