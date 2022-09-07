@@ -297,7 +297,7 @@ def create_geo_graph(
         # hotspots = [spot[0] for spot in hotspots]
         hotspots = [1008, 4025, 1005, 1009, 1007, 12007, 7001, 6004, 1010, 11017]
 
-        drone_spots = [15011, 13001, 2002, 11007, 4016, 1002, 3020, 9019, 9005]
+        drone_spots = [15011, 13001, 2002, 11007, 4016, 1009, 3020, 9019, 9005, 4025]
 
         df_stops_drones = df_stops[df_stops["MoDStop Id"].isin(drone_spots)]
 
