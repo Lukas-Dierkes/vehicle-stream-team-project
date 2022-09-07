@@ -806,11 +806,62 @@ def generateScheduledTo(oldRides, newRides):
         else i
         for i, j in zip(scheduledNew.created_at, scheduledNew.hour)
     ]
-    # we have no rides before 7
+    # we have no rides before 7 but don't want to many rides starting at 7:00am
+    # get target share of rides starting at hour=7
+    oldRides["scheduled_to"] = pd.to_datetime(oldRides["scheduled_to"])
+    oldRides["hour"] = oldRides["scheduled_to"].apply(lambda x: x.hour)
+    dist_hours_oldRides = (
+        oldRides["hour"].value_counts().rename_axis("hour").reset_index(name="counts")
+    )
+    dist_hours_oldRides["probabilities"] = (
+        dist_hours_oldRides.counts / dist_hours_oldRides.counts.sum()
+    )
+    targetRidesAtSeven = dist_hours_oldRides[dist_hours_oldRides["hour"] == 7][
+        "probabilities"
+    ].values[0]
+    # get missing amount of rides starting at hour = 7
+    scheduledNew["hour"] = scheduledNew["scheduled_to"].apply(lambda x: x.hour)
+    invalidRides = (
+        scheduledNew[(scheduledNew["hour"].isin([1, 2, 3, 4, 5, 6]))].count().values[0]
+    )
+    ridesAtSeven = scheduledNew[(scheduledNew["hour"] == 7)].count().values[0] / len(
+        newRides
+    )
+    missingRidesAtSeven = (
+        (targetRidesAtSeven - ridesAtSeven) * len(newRides) / invalidRides
+    )  # share of invalid rides that should start at 7 o'clock
+    # if not enough rides starting at 7, then add missing rides starting at 7
+    if missingRidesAtSeven > 0:
+        scheduledNew["scheduled_to"] = [
+            dt(scheduled.year, scheduled.month, scheduled.day, 7, 0)
+            if (h in [2, 3, 4, 5, 6])
+            & (np.random.uniform(0.0, 1.0) <= missingRidesAtSeven)
+            else scheduled
+            for scheduled, h in zip(scheduledNew.scheduled_to, scheduledNew.hour)
+        ]
+    # distribute rest over all hours of the day on the next day after created_at & don't consider 7am rides anymore
+    dist_hours_oldRides = dist_hours_oldRides[
+        (dist_hours_oldRides.hour != 7) & (dist_hours_oldRides.hour != 6)
+    ]
+    dist_hours_oldRides["probabilities"] = (
+        dist_hours_oldRides.counts / dist_hours_oldRides.counts.sum()
+    )
     scheduledNew["hour"] = scheduledNew["scheduled_to"].apply(lambda x: x.hour)
     scheduledNew["scheduled_to"] = [
-        dt(i.year, i.month, i.day, 7, 0) if j in [1, 2, 3, 4, 5, 6] else i
-        for i, j in zip(scheduledNew.scheduled_to, scheduledNew.hour)
+        dt(
+            (created + pd.Timedelta(1, unit="days")).year,
+            (created + pd.Timedelta(1, unit="days")).month,
+            (created + pd.Timedelta(1, unit="days")).day,
+            np.random.choice(
+                dist_hours_oldRides["hour"], p=dist_hours_oldRides["probabilities"]
+            ),
+            np.random.choice(list(range(0, 60, 10))),
+        )
+        if h in [1, 2, 3, 4, 5, 6]
+        else scheduled
+        for created, scheduled, h in zip(
+            scheduledNew.created_at, scheduledNew.scheduled_to, scheduledNew.hour
+        )
     ]
     return scheduledNew["scheduled_to"]
 
@@ -1332,8 +1383,9 @@ def generateDropoff(oldRides, newRides, routes):
             dropoffOld[
                 (dropoffOld["pickup_address"] == row["pickup_address"])
                 & (dropoffOld["dropoff_address"] == row["dropoff_address"])
-            ]["ride_time"].mean()
-            * np.random.uniform(0.9, 1.1)  # mean +/- up to 10% randomness
+            ][
+                "ride_time"
+            ].mean()  # mean +/- up to 10% randomness
         )
         if len(
             dropoffOld[
@@ -1344,17 +1396,8 @@ def generateDropoff(oldRides, newRides, routes):
         > 0
         else
         # else, use shortest ridetime: 30km/h over distance of the route
-        round(
-            (
-                routes[
-                    (routes["start_id"] == row["pickup_address"])
-                    & (routes["end_id"] == row["dropoff_address"])
-                ]["Route [m]"].values[0]
-                * 3600
-                / 30000
-            )
-            * np.random.uniform(1.0, 1.2)
-        ),
+        row["shortest_ridetime"]
+        * np.random.uniform(1.0, 1.1),  # mean up to +10% randomness,
         axis=1,
     )
 

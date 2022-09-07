@@ -22,7 +22,7 @@ df_edges = pd.read_excel(
 )
 df_edges.rename(columns={"Start #": "start_id", "Ende #": "end_id"}, inplace=True)
 
-rides_df = pd.read_excel(f"{repo}/data/cleaning/data_cleaned_1808.xlsx")
+rides_df = pd.read_csv(f"{repo}/data/cleaning/data_cleaned.csv")
 rides_df = rides_df[(rides_df["state"] == "completed")]
 rides_df["scheduled_to"] = pd.to_datetime(rides_df["scheduled_to"])
 
@@ -33,7 +33,7 @@ date_range = utils.get_date_range(start_date, end_date)
 data_range_len = len(date_range)
 
 # simulate rides
-total_sim_rides = 100  # CHANGE to Adjust total number of simualted rides
+total_sim_rides = 5000  # CHANGE to Adjust total number of simualted rides
 month_sim_rides = math.ceil(
     total_sim_rides / data_range_len
 )  # No. of simulated rides per month
