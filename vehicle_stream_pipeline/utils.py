@@ -1383,7 +1383,9 @@ def generateDropoff(oldRides, newRides, routes):
             dropoffOld[
                 (dropoffOld["pickup_address"] == row["pickup_address"])
                 & (dropoffOld["dropoff_address"] == row["dropoff_address"])
-            ]["ride_time"].mean()
+            ][
+                "ride_time"
+            ].mean()  # mean +/- up to 10% randomness
         )
         if len(
             dropoffOld[
