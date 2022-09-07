@@ -64,7 +64,7 @@ def get_geo_cordinates_for_path(df_stops, path):
     """Returns the geo coordinates (long, lat) for each spot in the given dataframe.
 
     Args:
-        df_stops (pandas DataFrame): dataframe with each stop
+        df_stops (pandas DataFrame): Dataframe with each stop
         path (str): Path where to find the excel sheet which stores each stop.
 
     Returns:
@@ -108,13 +108,14 @@ def calculate_drives(df, start_date, end_date):
     This dataframe is the bases for our graph.
 
     Args:
-        df (pandas DataFrame): dataframe containing all drives from MoD
-        start_date (_type_): used for filtering the dataframe so that only drives are stored that are
-        end_date (_type_): _description_
+        df (pandas DataFrame): Dataframe containing all drives from MoD
+        start_date (Timestamp): Used for filtering the dataframe so that only drives are stored that are later than the start date
+        end_date (Timestamp): Used for filtering the dataframe so that only drives are stored that are earlier than the end date
 
     Returns:
-        _type_: _description_
+        Pandas DataFrame: Containing the drives which are calculated.
     """
+
     days = (end_date - start_date).days + 1
     drives = pd.DataFrame(
         df.groupby(["pickup_address", "dropoff_address"], group_keys=False)
@@ -178,7 +179,7 @@ def get_hotspots(df_edges, drives, n=10):
 
     Args:
         df_edges (pandas DataFrame): Dataframe containing all combinations of spots.
-        drives (pandas DataFrame): Dataframe containing all shortest rides between given spost.
+        drives (pandas DataFrame): Dataframe containing all shortest rides between given spots.
         n (int, optional): Define how many spots will be returned. Defaults to 10.
 
     Returns:
@@ -373,14 +374,13 @@ def create_circles_around_drone_spots(df, radius=500):
 def get_route_information(drives, path, df_stops):
     """Creates a text for the dashbaord containing the path including all intermediate spots and for each edge on the path the shortest time.
 
-
     Args:
-        drives (_type_): _description_
-        path (list): _description_
-        df_stops (pandas DataFrame): _description_
+        drives (_type_): Dataframe containing all the aggregated drives.
+        path (list): List containing all stops for the given route.
+        df_stops (pandas DataFrame): Dataframe with each stop.
 
     Returns:
-        _type_: _description_
+        str: Text containing information about the path taken and how long to get to each of the intermediate stops
     """
     times_and_path = []
     text = ""
@@ -1680,6 +1680,16 @@ def transformForBar(n, df_value_counts_rides, df_value_counts_sim_l):
 
 
 def calculate_number_drivers(df, hour, comined_rides_factor=0.3):
+    """Calculates the number of drivers needed for the given rides in the dataframe in the given hour.
+
+    Args:
+        df (pandas DataFrame): Dataframe containing the rides for that we calculate how many drivers we need
+        hour (int): The hour where we calculate for how many drivers we need
+        comined_rides_factor (float, optional): Gives the percentage of how many drives can be combined with another drive. Defaults to 0.3.
+
+    Returns:
+        tuple(float, float): Tuple containing the number of drivers needed and how many parallel drives are there in the dataframe for the given hour.
+    """
     # Calculate how many drives a driver can to be hour
     df["driver_time"] = df["dropoff_at"] - df["dispatched_at"]
     df["driver_time"] = df["driver_time"].dt.seconds / 60
@@ -1705,7 +1715,9 @@ def calculate_number_drivers(df, hour, comined_rides_factor=0.3):
     return (average_drives / 3, average_drives)
 
 
-def getDeliveryTimes(rides_simulated, df_edges, month_diff, drone_radius=500):
+def getDeliveryTimes(
+    rides_simulated, df_edges, month_diff, drone_radius=500, only_main_routes=False
+):
     """Takes an input dateframe of rides (simulated or not simulated), transforms the data into graphs and applies diameter and average shortest path calculations.
         The output is used for regression of diameter and average shortest path
     Args:
@@ -1729,12 +1741,20 @@ def getDeliveryTimes(rides_simulated, df_edges, month_diff, drone_radius=500):
         diameter = nx.diameter(graph_without_drones, weight="avg_time_to_destination")
     else:
         diameter = 0
-    avg = nx.average_shortest_path_length(
-        graph_without_drones, weight="avg_time_to_destination"
-    )
+
+    if nx.is_weakly_connected(graph_without_drones):
+        avg = nx.average_shortest_path_length(
+            graph_without_drones, weight="avg_time_to_destination"
+        )
+    else:
+        avg = 0
 
     # rides with drones: calculate graph, diameter and average_shortest_path
-    drone_spots = [15011, 13001, 2002, 11007, 4016, 1009, 3020, 9019, 9005, 4025]
+    if only_main_routes:
+        drone_spots = []
+    else:
+        drone_spots = [15011, 13001, 2002, 11007, 4016, 1009, 3020, 9019, 9005, 4025]
+
     drives_with_drones = add_drone_flights(
         df_edges, drives_without_drones, drone_spots=drone_spots, radius=drone_radius
     )
@@ -1746,9 +1766,11 @@ def getDeliveryTimes(rides_simulated, df_edges, month_diff, drone_radius=500):
         )
     else:
         diameter = 0
-    avg_with_drones = nx.average_shortest_path_length(
-        graph_with_drones, weight="avg_time_to_destination"
-    )
+
+    if nx.is_weakly_connected(graph_without_drones):
+        avg_with_drones = nx.average_shortest_path_length(
+            graph_with_drones, weight="avg_time_to_destination"
+        )
 
     return [
         len(rides_simulated) / month_diff,
@@ -1759,7 +1781,13 @@ def getDeliveryTimes(rides_simulated, df_edges, month_diff, drone_radius=500):
     ]
 
 
-def getRegressionMetrics(rides_simulated, df_edges, stepsize=15000):
+def getRegressionMetrics(
+    rides_simulated,
+    df_edges,
+    stepsize=15000,
+    lower_boundary=10000,
+    only_main_routes=False,
+):
     """Takes an input dateframe of rides (simulated or not simulated), applies getDeliveryTimes() for increasing sample sizes of simulated rides to built one dataframe for regression
         The output is a dataframe of increasing sample sizes of simulated rides and used for regression of diameter and average shortest path
     Args:
@@ -1777,7 +1805,6 @@ def getRegressionMetrics(rides_simulated, df_edges, stepsize=15000):
         (end_date.year - start_date.year) * 12 + end_date.month - start_date.month
     )
 
-    lower_boundary = 10000
     upper_boundary = len(rides_simulated)
     results_df = pd.DataFrame(
         columns=[
@@ -1792,7 +1819,7 @@ def getRegressionMetrics(rides_simulated, df_edges, stepsize=15000):
     for n in list(range(lower_boundary, upper_boundary, stepsize)):
         current_sample_df = rides_simulated.sample(n=n)
         results_df.loc[len(results_df)] = getDeliveryTimes(
-            current_sample_df, df_edges, month_diff
+            current_sample_df, df_edges, month_diff, only_main_routes
         )
 
     return results_df
@@ -1831,7 +1858,7 @@ def get_opt_parameter(graph_metrics_df, metric="avg_w/o_drones"):
     x = graph_metrics_df[metric].to_numpy()
 
     # curve fitting
-    popt, pcov = curve_fit(regression_function, x, y)
+    popt, pcov = curve_fit(regression_function, x, y, maxfev=5000)
 
     return popt
 
@@ -1847,12 +1874,16 @@ def get_rides_num(max_days, graph_metrics_df, metric="avg_w/o_drones"):
     Returns:
         float: minimum number of rides needed to deliver package within max_days threshold for given graph metric.
     """
-
+    print("testtest")
     # gather data
     y = graph_metrics_df["#_simulated_rides"].to_numpy()
     x = graph_metrics_df[metric].to_numpy()
 
     # curve fitting
-    popt, pcov = curve_fit(regression_function, x, y)
+    popt, pcov = curve_fit(regression_function, x, y, maxfev=5000)
 
     return regression_function(max_days, *popt)
+
+
+def test():
+    return 2

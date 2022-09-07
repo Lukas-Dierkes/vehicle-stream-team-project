@@ -168,6 +168,23 @@ controls = dbc.Card(
                 ),
             ]
         ),
+        dbc.Row(
+            [
+                html.Div(
+                    dcc.RadioItems(
+                        id={
+                            "type": "dynmaic-dpn-main-spots",
+                        },
+                        options=[
+                            {"label": "Show main spots", "value": "1"},
+                            {"label": "Show hotspots", "value": "0"},
+                        ],
+                        value="0",
+                        labelStyle={"display": "block"},
+                    )
+                )
+            ]
+        ),
     ]
 )
 
@@ -238,6 +255,10 @@ layout = dbc.Container(
         ),
         Input("input_number_drones", "value"),
         Input("input_number_simulated_ride", "value"),
+        Input(
+            component_id={"type": "dynmaic-dpn-main-spots"},
+            component_property="value",
+        ),
     ],
 )
 # add parameters with default None
@@ -249,6 +270,7 @@ def create_geo_graph(
     dropoff_address="Hauptbahnhof",
     radius=500,
     sim_rides=0,
+    main_spots="0",
 ):
     global rides_df
     global df_edges
@@ -295,9 +317,37 @@ def create_geo_graph(
 
         # hotspots = utils.get_hotspots(df_edges, drives_without_drones)
         # hotspots = [spot[0] for spot in hotspots]
-        hotspots = [1008, 4025, 1005, 1009, 1007, 12007, 7001, 6004, 1010, 11017]
+        if main_spots == "1":
+            hotspots = [
+                1008,
+                4025,
+                6004,
+                12007,
+                11017,
+                15013,
+                3021,
+                8001,
+                5001,
+                11003,
+                4016,
+            ]
+            drone_spots = [
+                1008,
+                4025,
+                6004,
+                12007,
+                11017,
+                15013,
+                3021,
+                8001,
+                5001,
+                11003,
+                4016,
+            ]
+        else:
+            hotspots = [1008, 4025, 1005, 1009, 1007, 12007, 7001, 6004, 1010, 11017]
 
-        drone_spots = [15011, 13001, 2002, 11007, 4016, 1002, 3020, 9019, 9005]
+            drone_spots = [15011, 13001, 2002, 11007, 4016, 1002, 3020, 9019, 9005]
 
         df_stops_drones = df_stops[df_stops["MoDStop Id"].isin(drone_spots)]
 
