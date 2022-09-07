@@ -41,7 +41,7 @@ date_range = utils.get_date_range(start_date, end_date)
 data_range_len = len(date_range)
 
 
-sim_rides_all = pd.read_csv(f"{repo}/data/sim_rides_500k.csv")
+sim_rides_all = pd.read_csv(f"{repo}/data/simulated/sim_rides_500k.csv")
 sim_rides_all["simulated"] = True  # will be filtered later
 sim_rides_all["scheduled_to"] = pd.to_datetime(sim_rides_all["scheduled_to"])
 

@@ -1,5 +1,4 @@
 from datetime import datetime as dt
-from glob import glob
 
 import dash
 import dash_bootstrap_components as dbc
@@ -14,9 +13,7 @@ from dash import MATCH, Dash, Input, Output, callback, dcc, html
 from vehicle_stream_pipeline import utils
 
 repo = git.Repo(".", search_parent_directories=True).git.rev_parse("--show-toplevel")
-
-# Code from: https://github.com/plotly/dash-labs/tree/main/docs/demos/multi_page_example1
-dash.register_page(__name__)
+graph_metrics_df = pd.read_csv(f"{repo}/data/regression/graph_metrics_5Ksteps.csv")
 
 rides_df = pd.read_csv(f"{repo}/data/cleaning/data_cleaned.csv")
 rides_df = rides_df[(rides_df["state"] == "completed")]
@@ -25,65 +22,68 @@ rides_df["dropoff_at"] = pd.to_datetime(rides_df["dropoff_at"])
 rides_df["dispatched_at"] = pd.to_datetime(rides_df["dispatched_at"])
 
 
-simulated_rides = pd.read_csv(f"{repo}/data/sim_rides_500k.csv")
+simulated_rides = pd.read_csv(f"{repo}/data/simulated/sim_rides_500k.csv")
 simulated_rides["scheduled_to"] = pd.to_datetime(simulated_rides["scheduled_to"])
 simulated_rides["dropoff_at"] = pd.to_datetime(simulated_rides["dropoff_at"])
 simulated_rides["dispatched_at"] = pd.to_datetime(simulated_rides["dispatched_at"])
 
+# Code from: https://github.com/plotly/dash-labs/tree/main/docs/demos/multi_page_example1
+dash.register_page(__name__)
+
+
 controls = dbc.Card(
     [
+        html.Hr(),
         dbc.Row(
             [
-                dbc.Label("Pick date range"),
-                dcc.DatePickerRange(
-                    id="date_calendar",  # ID to be used for callback
-                    calendar_orientation="horizontal",  # vertical or horizontal
-                    day_size=39,  # size of calendar image. Default is 39
-                    # text that appears when no end date chosen
-                    end_date_placeholder_text="End-date",
-                    with_portal=False,  # if True calendar will open in a full screen overlay portal
-                    # Display of calendar when open (0 = Sunday)
-                    first_day_of_week=0,
-                    reopen_calendar_on_clear=True,
-                    is_RTL=False,  # True or False for direction of calendar
-                    clearable=True,  # whether or not the user can clear the dropdown
-                    number_of_months_shown=1,  # number of months shown when calendar is open
-                    min_date_allowed=dt(
-                        2021, 1, 1
-                    ),  # minimum date allowed on the DatePickerRange component
-                    max_date_allowed=dt(
-                        2022, 12, 31
-                    ),  # maximum date allowed on the DatePickerRange component
-                    initial_visible_month=dt(
-                        2021, 12, 1
-                    ),  # the month initially presented when the user opens the calendar
-                    start_date=dt(2022, 2, 1).date(),
-                    end_date=dt(2022, 2, 28).date(),
-                    # how selected dates are displayed in the DatePickerRange component.
-                    display_format="MMM Do, YY",
-                    # how calendar headers are displayed when the calendar is opened.
-                    month_format="MMMM, YYYY",
-                    minimum_nights=0,  # minimum number of days between start and end date
-                    persistence=True,
-                    persisted_props=["start_date"],
-                    persistence_type="session",  # session, local, or memory. Default is 'local'
-                    # singledate or bothdates. Determines when callback is triggered
-                    updatemode="singledate",
+                html.Label("Maximum Delivery Days"),
+                html.Div(
+                    dcc.Input(
+                        id="input_number_max_days",
+                        type="number",
+                        value=5,
+                    ),
                 ),
             ],
+            # className="d-grid gap-2 col-6 mx-auto",
         ),
         html.Hr(),
         dbc.Row(
             [
-                dbc.Label("Select combined_rides_factor"),
-                dcc.Slider(0, 1, 0.1, value=0.3, id="combined_rides_factor"),
-            ]
+                html.Label("Graph Metric"),
+                dcc.Dropdown(
+                    id="dropdown_graph_metric",
+                    options=[
+                        {
+                            "label": "Maximum Delivery Days without Drones",
+                            "value": "diameter_w/o_drones",
+                        },
+                        {
+                            "label": "Maximum Delivery Days with Drones",
+                            "value": "diameter_with_drones",
+                        },
+                        {
+                            "label": "Average Delivery Days without Drones",
+                            "value": "avg_w/o_drones",
+                        },
+                        {
+                            "label": "Average Delivery Days with Drones",
+                            "value": "avg_with_drones",
+                        },
+                    ],
+                    value="avg_w/o_drones",
+                    clearable=False,
+                ),
+            ],
+            # className="d-grid gap-2 col-6 mx-auto",
         ),
         html.Hr(),
         dbc.Row(
             [
-                dbc.Label("Average days need for package arrival"),
-                dcc.Slider(0, 10, 0.5, value=2.0, id="avg_package_arrival"),
+                html.Label("Percentage rides combined"),
+                html.Div(
+                    dcc.Slider(0, 1, 0.1, value=0.3, id="combined_rides_factor"),
+                ),
             ]
         ),
         html.Hr(),
@@ -92,7 +92,7 @@ controls = dbc.Card(
                 html.Div(
                     dcc.RadioItems(
                         id={
-                            "type": "dynmaic-main_routes",
+                            "type": "dynmaic-dpn-main-routes",
                         },
                         options=[
                             {"label": "Only main routes", "value": "1"},
@@ -111,17 +111,36 @@ controls = dbc.Card(
 layout = dbc.Container(
     [
         html.H1("Ride Simulation Analysis", style={"textAlign": "center"}),
-        html.Hr(),
         dbc.Row(
             [
                 dbc.Col([controls], width=3),
                 dbc.Col(
-                    dcc.Graph(id="fig_drivers"),
-                    # style={"height": "820px"},
-                ),
-                dbc.Col(
-                    dcc.Graph(id="fig_drives"),
-                    # style={"height": "820px"},
+                    [
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    dcc.Graph(id="needed_rides_plot"),
+                                ),
+                                dbc.Col(
+                                    html.Div(
+                                        id="needed_rides_text",
+                                        style={"whiteSpace": "pre-line"},
+                                    ),
+                                    width=3,
+                                ),
+                            ]
+                        ),
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    [
+                                        dcc.Graph(id="fig_drivers"),
+                                    ]
+                                ),
+                                dbc.Col([dcc.Graph(id="fig_drives")]),
+                            ]
+                        ),
+                    ]
                 ),
             ]
         ),
@@ -130,47 +149,94 @@ layout = dbc.Container(
 
 
 @callback(
-    Output("fig_drivers", "figure"),
-    Output("fig_drives", "figure"),
     [
-        Input("date_calendar", "start_date"),
-        Input("date_calendar", "end_date"),
-        Input(component_id="combined_rides_factor", component_property="value"),
-        Input(component_id="avg_package_arrival", component_property="value"),
+        Output("needed_rides_plot", "figure"),
+        Output("fig_drivers", "figure"),
+        Output("fig_drives", "figure"),
+        Output("needed_rides_text", "children"),
+    ],
+    [
+        Input("input_number_max_days", "value"),
+        Input("dropdown_graph_metric", "value"),
+        Input("combined_rides_factor", "value"),
         Input(
-            component_id={"type": "dynmaic-main_routes"},
+            component_id={"type": "dynmaic-dpn-main-routes"},
             component_property="value",
         ),
     ],
 )
-# add parameters with default None
-def create_dashboard_page(
-    start_date,
-    end_date,
+def update_charts(
+    max_days=5,
+    current_metric="avg_w/o_drones",
     combined_rides_factor=0.3,
-    avg_package_arrival=2,
-    only_main_routes="0",
+    main_routes="0",
 ):
+
+    global graph_metrics_df
     global rides_df
     global simulated_rides
 
-    start_date = dt.strptime(start_date, "%Y-%m-%d")
-    end_date = dt.strptime(end_date, "%Y-%m-%d")
+    graph_metrics_df_1 = graph_metrics_df.copy()
+    max_days = max_days
+    current_metric = current_metric
+    needed_rides = utils.get_rides_num(max_days, graph_metrics_df_1, current_metric)
 
-    rides_df_filterd = rides_df[
-        (rides_df["scheduled_to"] > start_date) & (rides_df["scheduled_to"] < end_date)
-    ]
+    # Update Figure diplaying Orginal Data Scatter Plot, Regression and max_days_line
+    # Scatter Plot of Orginal Rides Data
+    needed_rides_fig1 = px.scatter(
+        graph_metrics_df_1,
+        x=current_metric,
+        y="#_simulated_rides",
+        color_discrete_sequence=["DarkKhaki"],
+        title="Break Even of Rides",
+        range_x=[0, 20],
+    )
+    needed_rides_fig1["data"][0]["name"] = "Simulated Rides Data"
+    needed_rides_fig1["data"][0]["showlegend"] = False
+    # Line Plot of Regressed Data
+    needed_rides_fig2 = px.line(
+        x=graph_metrics_df_1[current_metric],
+        y=utils.regression_function(
+            graph_metrics_df_1[current_metric],
+            *utils.get_opt_parameter(graph_metrics_df_1, current_metric),
+        ),
+        color_discrete_sequence=["DarkCyan"],
+        range_x=[0, 20],
+    )
+    needed_rides_fig2["data"][0]["name"] = "Regression of Rides Data"
+    needed_rides_fig2["data"][0]["showlegend"] = False
+    # Line Plot working as cursor for current max days
+    needed_rides_fig3 = px.line(
+        x=[max_days, max_days], y=[0, needed_rides], color_discrete_sequence=["tomato"]
+    )
+    needed_rides_fig3["data"][0]["name"] = "Max Days for Delivery"
+    needed_rides_fig3["data"][0]["showlegend"] = False
+    needed_rides_fig4 = px.line(
+        x=[0, max_days],
+        y=[needed_rides, needed_rides],
+        color_discrete_sequence=["tomato"],
+    )
+
+    needed_rides_fig = go.Figure(
+        data=needed_rides_fig1.data
+        + needed_rides_fig2.data
+        + needed_rides_fig3.data
+        + needed_rides_fig4.data,
+        layout=needed_rides_fig1.layout,
+    )
+
+    # Calculate needed drivers
+    if needed_rides - len(rides_df) > 0:
+        simulated_rides_1 = simulated_rides.sample(int(needed_rides - len(rides_df)))
+
+    total_rides = pd.concat([rides_df, simulated_rides_1])
 
     hours = list(range(0, 24))
     numb_drivers_per_hour = []
     avg_drives_per_hour = []
     for i in hours:
-        numb_drivers_per_hour.append(
-            utils.calculate_number_drivers(rides_df_filterd, i)[0]
-        )
-        avg_drives_per_hour.append(
-            utils.calculate_number_drivers(rides_df_filterd, i)[1]
-        )
+        numb_drivers_per_hour.append(utils.calculate_number_drivers(total_rides, i)[0])
+        avg_drives_per_hour.append(utils.calculate_number_drivers(total_rides, i)[1])
 
     df_drivers_per_hour = pd.DataFrame(
         list(zip(hours, numb_drivers_per_hour)), columns=["hour", "drivers"]
@@ -183,4 +249,12 @@ def create_dashboard_page(
     fig_drivers = px.bar(df_drivers_per_hour, x="hour", y="drivers")
     fig_drives = px.bar(df_drives_per_hour, x="hour", y="drives")
 
-    return fig_drivers, fig_drives
+    nl = "\n \n"
+    needed_rides_text = f"Total amount rides needed:{nl} {str(int(needed_rides))}"
+
+    return [
+        needed_rides_fig,
+        fig_drivers,
+        fig_drives,
+        needed_rides_text,
+    ]  # output fig needs to be list in order work
