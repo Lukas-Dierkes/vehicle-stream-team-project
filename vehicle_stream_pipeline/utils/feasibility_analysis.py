@@ -36,19 +36,16 @@ def getDeliveryTimes(
         List: A list with the values ["#_simulated_rides", "diameter_w/o_drones", "avg_w/o_drones", "diameter_with_drones", "avg_with_drones"] for the given dataframe
     """
 
-    rides_simulated["scheduled_to"] = pd.to_datetime(
-        rides_simulated["scheduled_to"])
+    rides_simulated["scheduled_to"] = pd.to_datetime(rides_simulated["scheduled_to"])
     start_date = rides_simulated["scheduled_to"].min()
     end_date = rides_simulated["scheduled_to"].max()
 
     # rides without drones: calculate graph, diameter and average_shortest_path
-    drives_without_drones = calculate_drives(
-        rides_simulated, start_date, end_date)
+    drives_without_drones = calculate_drives(rides_simulated, start_date, end_date)
     graph_without_drones = calculate_graph(drives_without_drones)
     # graph needs to be strongly connected to calcutate diameter
     if nx.is_strongly_connected(graph_without_drones):
-        diameter = nx.diameter(graph_without_drones,
-                               weight="avg_time_to_destination")
+        diameter = nx.diameter(graph_without_drones, weight="avg_time_to_destination")
     else:
         diameter = 0
 
@@ -63,8 +60,7 @@ def getDeliveryTimes(
     if only_main_routes:
         drone_spots = []
     else:
-        drone_spots = [15011, 13001, 2002, 11007,
-                       4016, 1009, 3020, 9019, 9005, 4025]
+        drone_spots = [15011, 13001, 2002, 11007, 4016, 1009, 3020, 9019, 9005, 4025]
 
     drives_with_drones = add_drone_flights(
         df_edges, drives_without_drones, drone_spots=drone_spots, radius=drone_radius
@@ -109,13 +105,11 @@ def getRegressionMetrics(
         DataFrame: DataFrame containing the metrics ["#_simulated_rides", "diameter_w/o_drones", "avg_w/o_drones", "diameter_with_drones", "avg_with_drones"] for increasing number of simulated rides
     """
     # month_diff used to nomalize number of rides simulated to 1 month
-    rides_simulated["scheduled_to"] = pd.to_datetime(
-        rides_simulated["scheduled_to"])
+    rides_simulated["scheduled_to"] = pd.to_datetime(rides_simulated["scheduled_to"])
     start_date = rides_simulated["scheduled_to"].min()
     end_date = rides_simulated["scheduled_to"].max()
     month_diff = (
-        (end_date.year - start_date.year) *
-        12 + end_date.month - start_date.month
+        (end_date.year - start_date.year) * 12 + end_date.month - start_date.month
     )
 
     upper_boundary = len(rides_simulated)
@@ -232,8 +226,7 @@ def calculate_number_drivers(df, hour, comined_rides_factor=0.3):
 
     # Calculate how many parallel drives per hour exists
     parallel_drives = (
-        df_drivers.resample(
-            "H", on="scheduled_to_same_month").id.count().reset_index()
+        df_drivers.resample("H", on="scheduled_to_same_month").id.count().reset_index()
     )
     parallel_drives.rename(columns={"id": "parallel_drives"}, inplace=True)
     parallel_drives = parallel_drives[
