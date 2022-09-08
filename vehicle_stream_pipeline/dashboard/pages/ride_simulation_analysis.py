@@ -15,6 +15,10 @@ from vehicle_stream_pipeline import utils
 repo = git.Repo(".", search_parent_directories=True).git.rev_parse("--show-toplevel")
 graph_metrics_df = pd.read_csv(f"{repo}/data/regression/graph_metrics_5Ksteps.csv")
 
+graph_metrics_main_routes_df = pd.read_csv(
+    f"{repo}/data/regression/graph_metrics_main_routes.csv"
+)
+
 rides_df = pd.read_csv(f"{repo}/data/cleaning/data_cleaned.csv")
 rides_df = rides_df[(rides_df["state"] == "completed")]
 rides_df["scheduled_to"] = pd.to_datetime(rides_df["scheduled_to"])
@@ -173,13 +177,18 @@ def update_charts(
 ):
 
     global graph_metrics_df
+    global graph_metrics_main_routes_df
     global rides_df
     global simulated_rides
 
-    graph_metrics_df_1 = graph_metrics_df.copy()
-    max_days = max_days
-    current_metric = current_metric
+    if main_routes == "0":
+        graph_metrics_df_1 = graph_metrics_df.copy()
+    else:
+        graph_metrics_df_1 = graph_metrics_main_routes_df.copy()
+
     needed_rides = utils.get_rides_num(max_days, graph_metrics_df_1, current_metric)
+
+    graph_metrics_df_1
 
     # Update Figure diplaying Orginal Data Scatter Plot, Regression and max_days_line
     # Scatter Plot of Orginal Rides Data
@@ -228,15 +237,20 @@ def update_charts(
     # Calculate needed drivers
     if needed_rides - len(rides_df) > 0:
         simulated_rides_1 = simulated_rides.sample(int(needed_rides - len(rides_df)))
-
-    total_rides = pd.concat([rides_df, simulated_rides_1])
+        total_rides = pd.concat([rides_df, simulated_rides_1])
+    else:
+        total_rides = rides_df.sample(int(needed_rides))
 
     hours = list(range(0, 24))
     numb_drivers_per_hour = []
     avg_drives_per_hour = []
     for i in hours:
-        numb_drivers_per_hour.append(utils.calculate_number_drivers(total_rides, i)[0])
-        avg_drives_per_hour.append(utils.calculate_number_drivers(total_rides, i)[1])
+        numb_drivers_per_hour.append(
+            utils.calculate_number_drivers(total_rides, i, combined_rides_factor)[0]
+        )
+        avg_drives_per_hour.append(
+            utils.calculate_number_drivers(total_rides, i, combined_rides_factor)[1]
+        )
 
     df_drivers_per_hour = pd.DataFrame(
         list(zip(hours, numb_drivers_per_hour)), columns=["hour", "drivers"]

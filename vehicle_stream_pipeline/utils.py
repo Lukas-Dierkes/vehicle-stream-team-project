@@ -1733,17 +1733,36 @@ def calculate_number_drivers(df, hour, comined_rides_factor=0.3):
     Returns:
         tuple(float, float): Tuple containing the number of drivers needed and how many parallel drives are there in the dataframe for the given hour.
     """
+    df_drivers = df.copy()
+
+    df_drivers["scheduled_to_same_month"] = dt.strptime(f"2022-01", "%Y-%m")
+    df_drivers["scheduled_to_same_month"] += pd.to_timedelta(
+        df_drivers["scheduled_to"].dt.hour, unit="h"
+    )
+    df_drivers["scheduled_to_same_month"] += pd.to_timedelta(
+        df_drivers["scheduled_to"].dt.minute, unit="m"
+    )
+    df_drivers["scheduled_to_same_month"] += pd.to_timedelta(
+        df_drivers["scheduled_to"].dt.day - 1, unit="d"
+    )
+
+    """
     # Calculate how many drives a driver can to be hour
-    df["driver_time"] = df["dropoff_at"] - df["dispatched_at"]
-    df["driver_time"] = df["driver_time"].dt.seconds / 60
+    df_drivers["driver_time"] = df_drivers["dropoff_at"] - \
+        df_drivers["dispatched_at"]
+    df_drivers["driver_time"] = df_drivers["driver_time"].dt.seconds / 60
     avg_driver_time = df["driver_time"].mean()
     drives_per_hour = 60 / avg_driver_time
+    """
 
     # Calculate how many parallel drives per hour exists
-    df["driver_time"] = df["dropoff_at"] - df["dispatched_at"]
-    parallel_drives = df.resample("H", on="scheduled_to").id.count().reset_index()
+    parallel_drives = (
+        df_drivers.resample("H", on="scheduled_to_same_month").id.count().reset_index()
+    )
     parallel_drives.rename(columns={"id": "parallel_drives"}, inplace=True)
-    parallel_drives = parallel_drives[parallel_drives["scheduled_to"].dt.hour == hour]
+    parallel_drives = parallel_drives[
+        parallel_drives["scheduled_to_same_month"].dt.hour == hour
+    ]
 
     # Calculate average drives for given hour
 
@@ -1917,7 +1936,6 @@ def get_rides_num(max_days, graph_metrics_df, metric="avg_w/o_drones"):
     Returns:
         float: minimum number of rides needed to deliver package within max_days threshold for given graph metric.
     """
-    print("testtest")
     # gather data
     y = graph_metrics_df["#_simulated_rides"].to_numpy()
     x = graph_metrics_df[metric].to_numpy()
@@ -1926,7 +1944,3 @@ def get_rides_num(max_days, graph_metrics_df, metric="avg_w/o_drones"):
     popt, pcov = curve_fit(regression_function, x, y, maxfev=5000)
 
     return regression_function(max_days, *popt)
-
-
-def test():
-    return 2
