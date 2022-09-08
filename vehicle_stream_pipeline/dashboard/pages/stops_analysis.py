@@ -10,7 +10,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 from dash import MATCH, Dash, Input, Output, callback, dcc, html
 
-from vehicle_stream_pipeline import utils
+from vehicle_stream_pipeline.utils import prob_model as pm
+from vehicle_stream_pipeline.utils import ride_simulation as rs
 
 repo = git.Repo(".", search_parent_directories=True).git.rev_parse("--show-toplevel")
 
@@ -37,7 +38,7 @@ rides_df["scheduled_to"] = pd.to_datetime(rides_df["scheduled_to"])
 start_date = min(rides_df["scheduled_to"])
 end_date = max(rides_df["scheduled_to"])
 
-date_range = utils.get_date_range(start_date, end_date)
+date_range = rs.get_date_range(start_date, end_date)
 data_range_len = len(date_range)
 
 
@@ -282,8 +283,8 @@ def create_geo_graph(
     route_information = ""
     ridetime = "Average time to destination: 77 days"
 
-    pickup_address = utils.find_id_for_name(pickup_address, df_stops)
-    dropoff_address = utils.find_id_for_name(dropoff_address, df_stops)
+    pickup_address = pm.find_id_for_name(pickup_address, df_stops)
+    dropoff_address = pm.find_id_for_name(dropoff_address, df_stops)
 
     start_date = dt.strptime(start_date, "%Y-%m-%d")
     end_date = dt.strptime(end_date, "%Y-%m-%d")
@@ -311,7 +312,7 @@ def create_geo_graph(
     # if default parameters None, do nothing else get shortest ride of function call
     if pickup_address is not None or dropoff_address is not None:
 
-        drives_without_drones = utils.calculate_drives(
+        drives_without_drones = pm.calculate_drives(
             rides_df_filterd, start_date, end_date
         )
 
@@ -354,30 +355,30 @@ def create_geo_graph(
         if drones_activated == "0":
             layers = []
 
-            graph_without_drones = utils.calculate_graph(drives_without_drones)
-            path, shortest_time = utils.get_shortest_ride(
+            graph_without_drones = pm.calculate_graph(drives_without_drones)
+            path, shortest_time = pm.get_shortest_ride(
                 pickup_address, dropoff_address, graph_without_drones
             )
-            route_information = utils.get_route_information(
+            route_information = pm.get_route_information(
                 drives_without_drones, path, df_stops
             )
         else:
-            layers = utils.create_circles_around_drone_spots(df_stops_drones, radius)
+            layers = pm.create_circles_around_drone_spots(df_stops_drones, radius)
 
-            drives_with_drones = utils.add_drone_flights(
+            drives_with_drones = pm.add_drone_flights(
                 df_edges, drives_without_drones, drone_spots=drone_spots, radius=radius
             )
-            graph_with_drones = utils.calculate_graph(drives_with_drones)
-            path, shortest_time = utils.get_shortest_ride(
+            graph_with_drones = pm.calculate_graph(drives_with_drones)
+            path, shortest_time = pm.get_shortest_ride(
                 pickup_address, dropoff_address, graph_with_drones
             )
-            route_information = utils.get_route_information(
+            route_information = pm.get_route_information(
                 drives_with_drones, path, df_stops
             )
 
         ridetime = f"Average time to destination: {round(shortest_time, 2)} days"
         # get lat and lon for traces for each stop in the returend list
-        latitudes, longitudes = utils.get_geo_cordinates_for_path(df_stops, path)
+        latitudes, longitudes = pm.get_geo_cordinates_for_path(df_stops, path)
 
     pickup_counts = (
         rides_df_filterd.groupby("pickup_address")

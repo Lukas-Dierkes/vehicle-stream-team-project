@@ -1,3 +1,4 @@
+import os
 import time
 import warnings
 from datetime import datetime as dt
@@ -10,7 +11,49 @@ from numpy import NaN
 
 warnings.filterwarnings("ignore")
 
-# remove duplicates
+
+def create_overall_dataframes(path):
+    """This function creates three big dataframes out of the given excel files from Mod so we combine the data from all months.
+    1: kpi_combined.csv: That is the monthly kpi-stats combined. We rarely use this data
+    2. mtd_combined.csv: That (should) contain all the rides combined for each day of the month according to excel sheet.
+    3. rides_combined: Here we iterated over each day (excel sheet) and collected the data for each day on our own. Suprisingly this is different to the mtd_combined.csv and seems like that this data is more accurate. So we will use this dataframe for further analysis.
+
+    Args:
+        path (str): Path to the folder which stores the excel sheets.
+
+    Returns:
+        dict: The combined three dataframes.
+    """
+    directory = os.fsencode(path)
+    df_rides = pd.DataFrame()
+    df_kpi = pd.DataFrame()
+    df_mtd = pd.DataFrame()
+    for filename in os.listdir(directory):
+        if "Rides" not in str(filename):
+            continue
+
+        # Get correct filename
+        current_file = os.path.join(directory, filename).decode("utf-8")
+        current_file = current_file.replace("$", "")
+        current_file = current_file.replace("~", "")
+
+        # Read current excel file
+        df_dict = pd.read_excel(current_file, sheet_name=None)
+
+        # Extract dataframes from current excel file
+        df_kpi_temp = df_dict["KPI"]
+        df_dict.pop("KPI")
+        df_mtd_temp = df_dict["MTD"]
+        df_dict.pop("MTD")
+        # union all rides from all days in current excel file
+        df_rides_temp = pd.concat(df_dict, ignore_index=True)
+
+        # Create big dataframes over all excel files (all months combined)
+        df_kpi = pd.concat([df_kpi, df_kpi_temp], axis=0, ignore_index=True)
+        df_mtd = pd.concat([df_mtd, df_mtd_temp], axis=0, ignore_index=True)
+        df_rides = pd.concat([df_rides, df_rides_temp], axis=0, ignore_index=True)
+
+    return {"df_kpi": df_kpi, "df_mtd": df_mtd, "df_rides": df_rides}
 
 
 def clean_duplicates(df):
@@ -686,6 +729,10 @@ def data_cleaning(df, df_stops):
         "delay": "time",
     }
 
+    repo = git.Repo(".", search_parent_directories=True).git.rev_parse(
+        "--show-toplevel"
+    )
+
     df, df_inconsistencies = check_format(df, columns)
     if df_inconsistencies.empty == False:
         df_inconsistencies.to_excel(
@@ -1017,34 +1064,3 @@ def data_check(df):
     )
 
     return (df, df_incorrect)
-
-
-if __name__ == "__main__":
-    repo = git.Repo(".", search_parent_directories=True).git.rev_parse(
-        "--show-toplevel"
-    )
-    df = pd.read_csv(f"{repo}/data/rides_combined.csv", index_col=0)
-    df_stops = pd.read_excel(
-        f"{repo}/data/other/MoDstops+Preismodell.xlsx", sheet_name="MoDstops"
-    )
-    vehicle_usage_df = pd.read_excel(
-        f"{repo}/data/vehicle_data/MoD_Vehicle Usage_2021+2022-05-15.xlsx"
-    )
-    external_df = pd.read_excel(
-        f"{repo}/data/vehicle_data/Autofleet_Rides with External ID_2021+2022-05-15.xlsx"
-    )
-
-    df = clean_duplicates(df)
-
-    df = data_cleaning(df, df_stops)
-
-    df = add_shared_rides(df, vehicle_usage_df, external_df)
-
-    print("check cleaned data")
-    df, df_incorrect = data_check(df)
-    if df_incorrect.empty == False:
-        df_incorrect.to_excel(f"{repo}/data/cleaning/incorrect{int(time.time())}.xlsx")
-
-    df.to_csv(f"{repo}/data/cleaning/data_cleaned.csv", index=False)
-
-    print("Done!")

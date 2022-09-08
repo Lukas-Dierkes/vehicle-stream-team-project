@@ -10,7 +10,7 @@ import plotly.figure_factory as ff
 import plotly.graph_objects as go
 from dash import MATCH, Dash, Input, Output, callback, dcc, html
 
-from vehicle_stream_pipeline import utils
+from vehicle_stream_pipeline.utils import ride_simulation as rs
 
 repo = git.Repo(".", search_parent_directories=True).git.rev_parse("--show-toplevel")
 
@@ -160,17 +160,15 @@ def update_charts(number_simulations=100):
     sim_df_large_1 = sim_df_large.sample(number_simulations)
 
     # dataframes for Distplots
-    dist_df = utils.transformForDist(rides_df, "Original Rides")
-    dist_df_sim_l = utils.transformForDist(sim_df_large_1, "Simulated Rides large")
+    dist_df = rs.transformForDist(rides_df, "Original Rides")
+    dist_df_sim_l = rs.transformForDist(sim_df_large_1, "Simulated Rides large")
 
     # dataframe for Boxplot
     boxplot_df = pd.concat([dist_df, dist_df_sim_l])
 
     # dataframe for Piechart Route Visualization
-    df_value_counts_rides = utils.transformForRoute(dist_df, "Original Rides")
-    df_value_counts_sim_l = utils.transformForRoute(
-        dist_df_sim_l, "Simulated Rides large"
-    )
+    df_value_counts_rides = rs.transformForRoute(dist_df, "Original Rides")
+    df_value_counts_sim_l = rs.transformForRoute(dist_df_sim_l, "Simulated Rides large")
     known_route_l = (
         df_value_counts_sim_l["route"]
         .loc[df_value_counts_sim_l["route"].isin(df_value_counts_rides["route"])]
@@ -184,7 +182,7 @@ def update_charts(number_simulations=100):
 
     # print(df_value_counts_rides.shape)
     # dataframe for Barchart Route Visualization
-    top_df = utils.transformForBar(10, df_value_counts_rides, df_value_counts_sim_l)
+    top_df = rs.transformForBar(10, df_value_counts_rides, df_value_counts_sim_l)
     # figure bar chart for routes
     fig_routes_bar = px.bar(
         data_frame=top_df,

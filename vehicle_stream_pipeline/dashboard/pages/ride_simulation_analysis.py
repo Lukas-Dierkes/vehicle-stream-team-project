@@ -10,7 +10,7 @@ import plotly.figure_factory as ff
 import plotly.graph_objects as go
 from dash import MATCH, Dash, Input, Output, callback, dcc, html
 
-from vehicle_stream_pipeline import utils
+from vehicle_stream_pipeline.utils import feasibility_analysis as fa
 
 repo = git.Repo(".", search_parent_directories=True).git.rev_parse("--show-toplevel")
 graph_metrics_df = pd.read_csv(f"{repo}/data/regression/graph_metrics_5Ksteps.csv")
@@ -186,7 +186,7 @@ def update_charts(
     else:
         graph_metrics_df_1 = graph_metrics_main_routes_df.copy()
 
-    needed_rides = utils.get_rides_num(max_days, graph_metrics_df_1, current_metric)
+    needed_rides = fa.get_rides_num(max_days, graph_metrics_df_1, current_metric)
 
     graph_metrics_df_1
 
@@ -205,9 +205,9 @@ def update_charts(
     # Line Plot of Regressed Data
     needed_rides_fig2 = px.line(
         x=graph_metrics_df_1[current_metric],
-        y=utils.regression_function(
+        y=fa.regression_function(
             graph_metrics_df_1[current_metric],
-            *utils.get_opt_parameter(graph_metrics_df_1, current_metric),
+            *fa.get_opt_parameter(graph_metrics_df_1, current_metric),
         ),
         color_discrete_sequence=["DarkCyan"],
         range_x=[0, 20],
@@ -246,10 +246,10 @@ def update_charts(
     avg_drives_per_hour = []
     for i in hours:
         numb_drivers_per_hour.append(
-            utils.calculate_number_drivers(total_rides, i, combined_rides_factor)[0]
+            fa.calculate_number_drivers(total_rides, i, combined_rides_factor)[0]
         )
         avg_drives_per_hour.append(
-            utils.calculate_number_drivers(total_rides, i, combined_rides_factor)[1]
+            fa.calculate_number_drivers(total_rides, i, combined_rides_factor)[1]
         )
 
     df_drivers_per_hour = pd.DataFrame(

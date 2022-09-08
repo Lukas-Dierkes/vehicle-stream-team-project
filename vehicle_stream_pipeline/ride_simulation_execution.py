@@ -6,7 +6,7 @@ import git
 import numpy as np
 import pandas as pd
 
-from vehicle_stream_pipeline import utils
+from vehicle_stream_pipeline.utils import ride_simulation as rs
 
 warnings.filterwarnings("ignore")
 
@@ -29,7 +29,7 @@ rides_df["scheduled_to"] = pd.to_datetime(rides_df["scheduled_to"])
 # get date range from orignal data, to execute rides simulation for every given month
 start_date = min(rides_df["scheduled_to"])
 end_date = max(rides_df["scheduled_to"])
-date_range = utils.get_date_range(start_date, end_date)
+date_range = rs.get_date_range(start_date, end_date)
 data_range_len = len(date_range)
 
 # simulate rides
@@ -39,7 +39,7 @@ month_sim_rides = math.ceil(
 )  # No. of simulated rides per month
 new_rides_all = pd.DataFrame(columns=rides_df.columns)
 for (year, month) in date_range:
-    new_rides = utils.generateRideSpecs(
+    new_rides = rs.generateRideSpecs(
         rides_df,
         df_stops,
         df_edges,
