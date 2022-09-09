@@ -19,17 +19,19 @@ repo = git.Repo(".", search_parent_directories=True).git.rev_parse("--show-tople
 dash.register_page(__name__, path="/")
 
 
-# fetch data (here we can automate it)
+# Read in stops data
 df_stops = pd.read_excel(
     f"{repo}/data/other/MoDstops+Preismodell.xlsx", sheet_name="MoDstops"
 )
 
+# Read in all stop combinations
 df_edges = pd.read_excel(
     f"{repo}/data/other/MoDstops+Preismodell.xlsx", sheet_name="Liste 2022"
 )
 
 df_edges.rename(columns={"Start #": "start_id", "Ende #": "end_id"}, inplace=True)
 
+# Read in cleaned rides
 rides_df = pd.read_csv(f"{repo}/data/cleaning/data_cleaned.csv")
 rides_df = rides_df[(rides_df["state"] == "completed")]
 rides_df["scheduled_to"] = pd.to_datetime(rides_df["scheduled_to"])
@@ -41,7 +43,7 @@ end_date = max(rides_df["scheduled_to"])
 date_range = rs.get_date_range(start_date, end_date)
 data_range_len = len(date_range)
 
-
+# Read in simulated rides
 sim_rides_all = pd.read_csv(f"{repo}/data/simulated/sim_rides_500k.csv")
 sim_rides_all["simulated"] = True  # will be filtered later
 sim_rides_all["scheduled_to"] = pd.to_datetime(sim_rides_all["scheduled_to"])
@@ -262,7 +264,6 @@ layout = dbc.Container(
         ),
     ],
 )
-# add parameters with default None
 def create_geo_graph(
     start_date,
     end_date,
@@ -273,42 +274,53 @@ def create_geo_graph(
     sim_rides=0,
     main_spots="0",
 ):
+    # Use dataframes from global name space so you don't need to read them every time you cange an input
     global rides_df
     global df_edges
     global df_stops
     global sim_rides_all
 
+    # Copy data so it won't be overwritten by following manipulations
     rides_df_1 = rides_df.copy()
     sim_rides_all_1 = sim_rides_all.copy()
+
+    # Set placeholder for routeinformation output
     route_information = ""
     ridetime = "Average time to destination: 77 days"
 
+    # Find id for the dropoff and pickupp address
     pickup_address = pm.find_id_for_name(pickup_address, df_stops)
     dropoff_address = pm.find_id_for_name(dropoff_address, df_stops)
 
+    # Convert start_date and end_date input to timestamps
     start_date = dt.strptime(start_date, "%Y-%m-%d")
     end_date = dt.strptime(end_date, "%Y-%m-%d")
+
+    # Check whether simulated rides should be added or not
     if sim_rides != 0:
         sim_rides_all_1 = sim_rides_all_1[
             (sim_rides_all_1["scheduled_to"] > start_date)
             & (sim_rides_all_1["scheduled_to"] < end_date)
         ]
+        # If number of needed simulation rides is bigger than our sample then use sample with replacement
         if sim_rides > len(sim_rides_all_1):
             sim_rides_sample = sim_rides_all_1.sample(n=sim_rides, replace=True)
         else:
             sim_rides_sample = sim_rides_all_1.sample(n=sim_rides)
 
+        # Combine original rides with simulated rides
         new_rides_all = pd.concat([rides_df_1, sim_rides_sample])
 
     else:
+        # Only original rides
         new_rides_all = rides_df_1
 
+    # Filter data for given start_date and end_date
     rides_df_filterd = new_rides_all[
         (new_rides_all["scheduled_to"] > start_date)
         & (new_rides_all["scheduled_to"] < end_date)
     ]
 
-    # print(len(rides_df_filterd))
     # if default parameters None, do nothing else get shortest ride of function call
     if pickup_address is not None or dropoff_address is not None:
 
@@ -316,9 +328,9 @@ def create_geo_graph(
             rides_df_filterd, start_date, end_date
         )
 
-        # hotspots = utils.get_hotspots(df_edges, drives_without_drones)
-        # hotspots = [spot[0] for spot in hotspots]
+        # Check whether hotsspots or main_spots should be shown in the graph
         if main_spots == "1":
+            # Set main_spots and drone_spots (both are same for this case)
             hotspots = [
                 1008,
                 4025,
@@ -332,6 +344,8 @@ def create_geo_graph(
                 11003,
                 4016,
             ]
+
+            # Manually define drone spots
             drone_spots = [
                 1008,
                 4025,
@@ -346,46 +360,68 @@ def create_geo_graph(
                 4016,
             ]
         else:
+            # Hotspots are hardcoded because calculation takes to long for dashbaord updating
             hotspots = [1008, 4025, 1005, 1009, 1007, 12007, 7001, 6004, 1010, 11017]
 
+            # Manually define drone spots
             drone_spots = [15011, 13001, 2002, 11007, 4016, 1002, 3020, 9019, 9005]
 
+        # Filter stops for only drone stops
         df_stops_drones = df_stops[df_stops["MoDStop Id"].isin(drone_spots)]
 
+        # Check whether drone flights should be added or not
         if drones_activated == "0":
             layers = []
 
+            # Calculate graph without drones
             graph_without_drones = pm.calculate_graph(drives_without_drones)
+
+            # Calculate shortest path for given input pickup address and dropoff address
             path, shortest_time = pm.get_shortest_ride(
                 pickup_address, dropoff_address, graph_without_drones
             )
+
+            # Get the route information for the shortest path
             route_information = pm.get_route_information(
                 drives_without_drones, path, df_stops
             )
         else:
+            # Create circle layer for the graph which show the radius of drones
             layers = pm.create_circles_around_drone_spots(df_stops_drones, radius)
 
+            # Add drone flights
             drives_with_drones = pm.add_drone_flights(
                 df_edges, drives_without_drones, drone_spots=drone_spots, radius=radius
             )
+
+            # Calculate graph with drones flights included
             graph_with_drones = pm.calculate_graph(drives_with_drones)
+
+            # Calculate shortest path with drone flights
             path, shortest_time = pm.get_shortest_ride(
                 pickup_address, dropoff_address, graph_with_drones
             )
+
+            # Get route information for shortest path
             route_information = pm.get_route_information(
                 drives_with_drones, path, df_stops
             )
 
         ridetime = f"Average time to destination: {round(shortest_time, 2)} days"
         # get lat and lon for traces for each stop in the returend list
+
+        # Get geo coordinates for each stop in the graph
         latitudes, longitudes = pm.get_geo_cordinates_for_path(df_stops, path)
 
+    # Calculate the number of pickups for each spot
     pickup_counts = (
         rides_df_filterd.groupby("pickup_address")
         .size()
         .to_frame("number_of_pickups")
         .reset_index()
     )
+
+    # Calculate the number of dropoffs for each spot
     dropoff_counts = (
         rides_df_filterd.groupby("dropoff_address")
         .size()
@@ -393,9 +429,11 @@ def create_geo_graph(
         .reset_index()
     )
 
+    # Convert counts to integer
     pickup_counts["pickup_address"] = pickup_counts["pickup_address"].astype(int)
     dropoff_counts["dropoff_address"] = dropoff_counts["dropoff_address"].astype(int)
 
+    # Join the pickup counts and dropff counts to the stop dataframe
     df_stops_1 = pd.merge(
         df_stops, pickup_counts, left_on="MoDStop Id", right_on="pickup_address"
     ).drop("pickup_address", axis=1)
@@ -403,6 +441,7 @@ def create_geo_graph(
         df_stops_1, dropoff_counts, left_on="MoDStop Id", right_on="dropoff_address"
     ).drop("dropoff_address", axis=1)
 
+    # Coloring of drone spots in the graph so we can distinguish between them in the graph
     if drones_activated == "1":
         df_stops_1["is_drone_spot_color"] = np.where(
             df_stops_1["MoDStop Id"].isin(drone_spots), "purple", "blue"
@@ -424,12 +463,12 @@ def create_geo_graph(
             (df_stops_1["MoDStop Id"].isin(hotspots)), 12, 6
         )
 
+    # Create Map with spots and shortest path
     fig = go.Figure(
         go.Scattermapbox(
             mode="markers",
             lat=df_stops_1["MoDStop Lat"],
             lon=df_stops_1["MoDStop Long"],
-            # [df_stops_1['MoDStop Name'], df_stops_1['MoDStop Id']]
             hovertext=df_stops_1["MoDStop Name"],
             hoverinfo="text",
             marker={
@@ -446,8 +485,6 @@ def create_geo_graph(
             lat=latitudes,
             mode="markers+lines",
             line=dict(width=2, color="red"),
-            # [df_stops_1['MoDStop Name'], df_stops_1['MoDStop Id']]
-            # hovertext=df_stops_1["MoDStop Name"],
             hoverinfo="skip",
             opacity=1,
             showlegend=False,

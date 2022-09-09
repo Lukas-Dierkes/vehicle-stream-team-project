@@ -1,16 +1,10 @@
 import collections
 import json
-import os
-import time
-import warnings
-from datetime import datetime as dt
 
 import geopandas as gpd
 import networkx as nx
 import numpy as np
 import pandas as pd
-import plotly.express as px
-import scipy.stats as stats
 import shapely.geometry
 from scipy.optimize import curve_fit
 
@@ -39,16 +33,20 @@ def calculate_drives(df, start_date, end_date):
     Returns:
         Pandas DataFrame: Containing the drives which are calculated.
     """
-
+    # Calculate the number of days
     days = (end_date - start_date).days + 1
+
+    # Get number of driver per pickup_address, droppoff_address combination
     drives = pd.DataFrame(
         df.groupby(["pickup_address", "dropoff_address"], group_keys=False)
         .size()
         .to_frame("number_of_drives")
     ).reset_index()
 
+    # Calculate how many days you need to wait for one drive for each pickup dropoff combination
     drives["waiting_time"] = days / drives["number_of_drives"]
 
+    # Calculate the average ride time for each combination
     drives["avg_ride_time"] = (
         df.groupby(
             ["pickup_address", "dropoff_address"], as_index=False, group_keys=False
@@ -58,8 +56,10 @@ def calculate_drives(df, start_date, end_date):
         / 24
     )
 
+    # Fill missing ride time values (measurement in days)
     drives["avg_ride_time"].fillna(0.001738, inplace=True)
 
+    # Calculate the average time to destination by adding waiting time and ride time
     drives["avg_time_to_destination"] = drives["waiting_time"] + drives["avg_ride_time"]
 
     return drives
@@ -129,19 +129,33 @@ def get_hotspots(df_edges, drives, n=10):
     Returns:
         list(str): List of the calculated hotspts.
     """
-
+    # Calculate graph
     graph = calculate_graph(drives)
+
+    # Rename edges variables
     df_edges.rename(columns={"Start #": "start_id", "Ende #": "end_id"}, inplace=True)
+
+    # Create a variable that contains information about whether the graph contains that edge or not
     df_edges["include"] = df_edges["Spots"] = df_edges.apply(
         lambda x: graph.has_edge(x.start_id, x.end_id), axis=1
     )
+
+    # Filter edge combinations for only combination that has an edge in the graph
     df_edges_filtered = df_edges[df_edges["include"] == True]
+
+    # Get shortest path for each combination
     df_edges_filtered["Spots"] = df_edges_filtered.apply(
         lambda x: get_shortest_ride(x.start_id, x.end_id, graph)[0], axis=1
     )
+
+    # Create a list with all shortest paths
     df_edges_filtered = df_edges_filtered[df_edges_filtered.Spots != "Not in graph"]
     hotspots = list(df_edges_filtered["Spots"])
+
+    # Flatten the list so we obtain not considering different paths anymore, only the stops
     hotspots = [x for xs in hotspots for x in xs]
+
+    # Take the most n common spots from the list --> these are the hotspots so the spots that occur most often in a shortest path
     counter = collections.Counter(hotspots)
     hotspots = [i[0] for i in counter.most_common(n)]
 
@@ -161,19 +175,27 @@ def add_drone_flights(df_edges, drives, drone_spots=[1008], radius=500):
     Returns:
         pandas DataFrame: returns a dataframe containing the normal drives plus the added drone flights
     """
+
+    # Prepare edges dataframe and filter not needed columns
     drone_flights = df_edges.iloc[:, :6]
     drone_flights.drop(["Start Name", "Ende Name", "Route [m]"], axis=1, inplace=True)
     drone_flights.rename(columns={"Luftlinie [m]": "Luftlinie"}, inplace=True)
 
+    # Filter every route which have a bigger radius than the given one because we only allow drone flight in a certrain radius
     drone_flights = drone_flights[drone_flights["Luftlinie"] <= radius]
 
-    drone_flights["number_of_drives"] = 1
+    # We assume there is no waiting time for drones
     drone_flights["waiting_time"] = 0
+    drone_flights["number_of_drives"] = 1
+
+    # Calculate the ride time of drones
     drone_flights["avg_ride_time"] = (drone_flights.Luftlinie / 7) / 60 / 60 / 24
     drone_flights["avg_time_to_destination"] = (
         (drone_flights.Luftlinie / 7) / 60 / 60 / 24
     )
 
+    # Filter for routes that either has the dropoff address or the pickup address at at drone spot
+    # So we only allow drone flight from a drone spot to another spot in a radius or a drone flight from another spot in 500 m radius to the drone spot
     drone_flights = drone_flights[
         (drone_flights["start_id"].isin(drone_spots))
         | (drone_flights["end_id"].isin(drone_spots))
@@ -185,6 +207,7 @@ def add_drone_flights(df_edges, drives, drone_spots=[1008], radius=500):
     )
     drone_flights.drop(["Luftlinie"], axis=1, inplace=True)
 
+    # Combine drives and drone flights
     drives_w_flights = pd.merge(
         drives,
         drone_flights,
@@ -208,6 +231,8 @@ def add_drone_flights(df_edges, drives, drone_spots=[1008], radius=500):
         ~(drone_flights["start_end"].isin(drives_w_flights["start_end"]))
     ]
 
+    # Change of exising times (with cars) by the faster times that we have now because of the drones.
+    # Only for drives to a drone spot or from a drone spot (both in 500m radius)
     drives_w_flights["avg_time_to_destination"] = np.where(
         (
             drives_w_flights["avg_time_to_destination_x"]

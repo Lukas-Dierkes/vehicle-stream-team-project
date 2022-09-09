@@ -11,6 +11,8 @@ app = dash.Dash(
     __name__, plugins=[dl.plugins.pages], external_stylesheets=[dbc.themes.BOOTSTRAP]
 )
 
+# Code inspired and copied from https://github.com/Coding-with-Adam/Dash-by-Plotly/tree/master/Dash_More_Advanced_Shit/Intro%20to%20Python%20multipage/App-A
+
 offcanvas = html.Div(
     [
         dbc.Button("Explore", id="open-offcanvas", n_clicks=0),

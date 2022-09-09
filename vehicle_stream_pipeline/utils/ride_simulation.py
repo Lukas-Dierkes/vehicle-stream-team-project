@@ -1,17 +1,11 @@
-import collections
-import json
-import os
 import time
 import warnings
 from datetime import datetime as dt
 
 import geopandas as gpd
-import networkx as nx
 import numpy as np
 import pandas as pd
-import plotly.express as px
 import scipy.stats as stats
-import shapely.geometry
 from scipy.optimize import curve_fit
 
 

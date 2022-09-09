@@ -1,43 +1,43 @@
-from datetime import datetime as dt
-
+# Setup
 import dash
 import dash_bootstrap_components as dbc
 import git
-import numpy as np
 import pandas as pd
 import plotly.express as px
-import plotly.figure_factory as ff
 import plotly.graph_objects as go
-from dash import MATCH, Dash, Input, Output, callback, dcc, html
+from dash import MATCH, Input, Output, callback, dcc, html
 
 from vehicle_stream_pipeline.utils import feasibility_analysis as fa
 
 repo = git.Repo(".", search_parent_directories=True).git.rev_parse("--show-toplevel")
-graph_metrics_df = pd.read_csv(f"{repo}/data/regression/graph_metrics_5Ksteps.csv")
 
+# Read in graph metrics for all routes
+graph_metrics_df = pd.read_csv(f"{repo}/data/regression/graph_metrics.csv")
+
+# Read in graph metrics for main routes
 graph_metrics_main_routes_df = pd.read_csv(
     f"{repo}/data/regression/graph_metrics_main_routes.csv"
 )
 
+# Read in cleaned data and convert some features
 rides_df = pd.read_csv(f"{repo}/data/cleaning/data_cleaned.csv")
 rides_df = rides_df[(rides_df["state"] == "completed")]
 rides_df["scheduled_to"] = pd.to_datetime(rides_df["scheduled_to"])
 rides_df["dropoff_at"] = pd.to_datetime(rides_df["dropoff_at"])
 rides_df["dispatched_at"] = pd.to_datetime(rides_df["dispatched_at"])
 
-
-simulated_rides = pd.read_csv(f"{repo}/data/simulated/sim_rides_500k.csv")
+# Read in simulated rides and convert some features
+simulated_rides = pd.read_csv(f"{repo}/data/simulated/sim_rides_200k.csv")
 simulated_rides["scheduled_to"] = pd.to_datetime(simulated_rides["scheduled_to"])
 simulated_rides["dropoff_at"] = pd.to_datetime(simulated_rides["dropoff_at"])
 simulated_rides["dispatched_at"] = pd.to_datetime(simulated_rides["dispatched_at"])
 
-# Code from: https://github.com/plotly/dash-labs/tree/main/docs/demos/multi_page_example1
 dash.register_page(__name__)
-
 
 controls = dbc.Card(
     [
         html.Hr(),
+        # Maximum Delivery days input
         dbc.Row(
             [
                 html.Label("Maximum Delivery Days"),
@@ -52,6 +52,7 @@ controls = dbc.Card(
             # className="d-grid gap-2 col-6 mx-auto",
         ),
         html.Hr(),
+        # Dropdown for metrics
         dbc.Row(
             [
                 html.Label("Graph Metric"),
@@ -79,9 +80,9 @@ controls = dbc.Card(
                     clearable=False,
                 ),
             ],
-            # className="d-grid gap-2 col-6 mx-auto",
         ),
         html.Hr(),
+        # Slider for the percentage rides combined
         dbc.Row(
             [
                 html.Label("Percentage rides combined"),
@@ -91,6 +92,7 @@ controls = dbc.Card(
             ]
         ),
         html.Hr(),
+        # Radio items to choose between main routes and all routes
         dbc.Row(
             [
                 html.Div(
@@ -120,6 +122,7 @@ layout = dbc.Container(
                 dbc.Col([controls], width=3),
                 dbc.Col(
                     [
+                        # Needed rides plot
                         dbc.Row(
                             [
                                 dbc.Col(
@@ -136,11 +139,13 @@ layout = dbc.Container(
                         ),
                         dbc.Row(
                             [
+                                # Plot for drivers needed
                                 dbc.Col(
                                     [
                                         dcc.Graph(id="fig_drivers"),
                                     ]
                                 ),
+                                # Plot for amout of parallel drives
                                 dbc.Col([dcc.Graph(id="fig_drives")]),
                             ]
                         ),
@@ -175,20 +180,20 @@ def update_charts(
     combined_rides_factor=0.3,
     main_routes="0",
 ):
-
+    # Use dataframes from global name space so you don't need to read them every time you cange an input
     global graph_metrics_df
     global graph_metrics_main_routes_df
     global rides_df
     global simulated_rides
 
+    # Choose between graph metrics based on all routes or just the main routes depending on the input value
     if main_routes == "0":
         graph_metrics_df_1 = graph_metrics_df.copy()
     else:
         graph_metrics_df_1 = graph_metrics_main_routes_df.copy()
 
+    # Calculate needed rides
     needed_rides = fa.get_rides_num(max_days, graph_metrics_df_1, current_metric)
-
-    graph_metrics_df_1
 
     # Update Figure diplaying Orginal Data Scatter Plot, Regression and max_days_line
     # Scatter Plot of Orginal Rides Data
@@ -226,6 +231,7 @@ def update_charts(
         color_discrete_sequence=["tomato"],
     )
 
+    # Combine all plots into on figure
     needed_rides_fig = go.Figure(
         data=needed_rides_fig1.data
         + needed_rides_fig2.data
@@ -235,12 +241,15 @@ def update_charts(
     )
 
     # Calculate needed drivers
+
+    # Sample as many rides as needed as calculated before.
     if needed_rides - len(rides_df) > 0:
         simulated_rides_1 = simulated_rides.sample(int(needed_rides - len(rides_df)))
         total_rides = pd.concat([rides_df, simulated_rides_1])
     else:
         total_rides = rides_df.sample(int(needed_rides))
 
+    # For each hour calculate how many parallel drives are existing in the sample and thus how many drivers we need
     hours = list(range(0, 24))
     numb_drivers_per_hour = []
     avg_drives_per_hour = []
@@ -252,17 +261,21 @@ def update_charts(
             fa.calculate_number_drivers(total_rides, i, combined_rides_factor)[1]
         )
 
+    # Store number of drivers and hour in dataframe
     df_drivers_per_hour = pd.DataFrame(
         list(zip(hours, numb_drivers_per_hour)), columns=["hour", "drivers"]
     )
 
+    # Store number of parallel drives and hour in a dataframe
     df_drives_per_hour = pd.DataFrame(
         list(zip(hours, avg_drives_per_hour)), columns=["hour", "drives"]
     )
 
+    # build figures for drivers per hour and parallel driver per hour
     fig_drivers = px.bar(df_drivers_per_hour, x="hour", y="drivers")
     fig_drives = px.bar(df_drives_per_hour, x="hour", y="drives")
 
+    # Create a text for the outout showing the number of needed drives
     nl = "\n \n"
     needed_rides_text = f"Total amount rides needed:{nl} {str(int(needed_rides))}"
 
