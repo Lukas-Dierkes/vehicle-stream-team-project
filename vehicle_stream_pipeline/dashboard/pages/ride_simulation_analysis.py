@@ -27,7 +27,7 @@ rides_df["dropoff_at"] = pd.to_datetime(rides_df["dropoff_at"])
 rides_df["dispatched_at"] = pd.to_datetime(rides_df["dispatched_at"])
 
 # Read in simulated rides and convert some features
-simulated_rides = pd.read_csv(f"{repo}/data/simulated/sim_rides_200k.csv")
+simulated_rides = pd.read_csv(f"{repo}/data/simulated/ride_simulation.csv")
 simulated_rides["scheduled_to"] = pd.to_datetime(simulated_rides["scheduled_to"])
 simulated_rides["dropoff_at"] = pd.to_datetime(simulated_rides["dropoff_at"])
 simulated_rides["dispatched_at"] = pd.to_datetime(simulated_rides["dispatched_at"])
@@ -277,7 +277,9 @@ def update_charts(
 
     # Create a text for the outout showing the number of needed drives
     nl = "\n \n"
-    needed_rides_text = f"Total amount rides needed:{nl} {str(int(needed_rides))}"
+    needed_rides_text = (
+        f"Total amount rides needed:{nl} {str(int(needed_rides))} per month"
+    )
 
     return [
         needed_rides_fig,

@@ -14,16 +14,15 @@ from vehicle_stream_pipeline.utils import ride_simulation as rs
 
 repo = git.Repo(".", search_parent_directories=True).git.rev_parse("--show-toplevel")
 
-# Code from: https://github.com/plotly/dash-labs/tree/main/docs/demos/multi_page_example1
 dash.register_page(__name__)
 
-
+# Read in cleaned rides
 rides_df = pd.read_csv(f"{repo}/data/cleaning/data_cleaned.csv")
 rides_df = rides_df[(rides_df["state"] == "completed")]
 rides_df["scheduled_to"] = pd.to_datetime(rides_df["scheduled_to"])
 
 # sim_df_small = pd.read_csv(f"{repo}/data/simulated/sim_rides_1808_9.csv")
-sim_df_large = pd.read_csv(f"{repo}/data/simulated/sim_rides_500k.csv")
+sim_df_large = pd.read_csv(f"{repo}/data/simulated/ride_simulation.csv")
 sim_df_large["scheduled_to"] = pd.to_datetime(sim_df_large["scheduled_to"])
 
 
@@ -156,6 +155,7 @@ layout = dbc.Container(
     ],
 )
 def update_charts(number_simulations=100):
+    # Take a sample from the simulated rides according
     global sim_df_large
     sim_df_large_1 = sim_df_large.sample(number_simulations)
 

@@ -33,12 +33,10 @@ date_range = rs.get_date_range(start_date, end_date)
 data_range_len = len(date_range)
 
 # simulate rides
-total_sim_rides = 5000  # CHANGE to Adjust total number of simualted rides
-month_sim_rides = math.ceil(
-    total_sim_rides / data_range_len
-)  # No. of simulated rides per month
+month_sim_rides = 5000  # CHANGE to Adjust monthly number of simualted rides
 new_rides_all = pd.DataFrame(columns=rides_df.columns)
 for (year, month) in date_range:
+    print("\nSimulation started for month", month, "in year", year)
     new_rides = rs.generateRideSpecs(
         rides_df,
         df_stops,
@@ -50,4 +48,4 @@ for (year, month) in date_range:
     new_rides_all = pd.concat([new_rides, new_rides_all])
 
 # save simulated rides as csv
-new_rides_all.to_csv(f"{repo}/data/simulated/sim_rides_test.csv")
+new_rides_all.to_csv(f"{repo}/data/simulated/ride_simulation.csv")
