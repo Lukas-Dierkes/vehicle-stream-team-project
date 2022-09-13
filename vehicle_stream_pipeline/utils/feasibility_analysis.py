@@ -116,7 +116,7 @@ def getRegressionMetrics(
     for n in list(range(lower_boundary, upper_boundary, stepsize)):
         current_sample_df = rides_simulated.sample(n=n)
         results_df.loc[len(results_df)] = getDeliveryTimes(
-            current_sample_df, df_edges, month_diff, only_main_routes
+            current_sample_df, df_edges, month_diff, 500, only_main_routes
         )
 
     return results_df

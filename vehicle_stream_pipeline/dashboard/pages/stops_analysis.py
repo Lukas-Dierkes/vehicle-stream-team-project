@@ -45,6 +45,8 @@ data_range_len = len(date_range)
 
 # Read in simulated rides
 sim_rides_all = pd.read_csv(f"{repo}/data/simulated/ride_simulation.csv")
+sim_rides_all = sim_rides_all.sample(15000)
+
 sim_rides_all["simulated"] = True  # will be filtered later
 sim_rides_all["scheduled_to"] = pd.to_datetime(sim_rides_all["scheduled_to"])
 
@@ -78,8 +80,8 @@ controls = dbc.Card(
                     initial_visible_month=dt(
                         2021, 12, 1
                     ),  # the month initially presented when the user opens the calendar
-                    start_date=dt(2022, 2, 1).date(),
-                    end_date=dt(2022, 2, 28).date(),
+                    start_date=dt(2021, 8, 1).date(),
+                    end_date=dt(2022, 6, 30).date(),
                     # how selected dates are displayed in the DatePickerRange component.
                     display_format="MMM Do, YY",
                     # how calendar headers are displayed when the calendar is opened.
@@ -346,19 +348,7 @@ def create_geo_graph(
             ]
 
             # Manually define drone spots
-            drone_spots = [
-                1008,
-                4025,
-                6004,
-                12007,
-                11017,
-                15013,
-                3021,
-                8001,
-                5001,
-                11003,
-                4016,
-            ]
+            drone_spots = []
         else:
             # Hotspots are hardcoded because calculation takes to long for dashbaord updating
             hotspots = [1008, 4025, 1005, 1009, 1007, 12007, 7001, 6004, 1010, 11017]

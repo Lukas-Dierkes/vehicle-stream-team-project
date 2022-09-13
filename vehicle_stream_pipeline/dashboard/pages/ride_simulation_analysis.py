@@ -87,7 +87,7 @@ controls = dbc.Card(
             [
                 html.Label("Percentage rides combined"),
                 html.Div(
-                    dcc.Slider(0, 1, 0.1, value=0.3, id="combined_rides_factor"),
+                    dcc.Slider(0, 1, 0.1, value=0.2, id="combined_rides_factor"),
                 ),
             ]
         ),
@@ -177,7 +177,7 @@ layout = dbc.Container(
 def update_charts(
     max_days=5,
     current_metric="avg_w/o_drones",
-    combined_rides_factor=0.3,
+    combined_rides_factor=0.2,
     main_routes="0",
 ):
     # Use dataframes from global name space so you don't need to read them every time you cange an input
