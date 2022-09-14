@@ -1,10 +1,11 @@
 # Open-Objective Data Mining of Real World Vehicle Data 
  
 ## Table of Contents 
-1. [General Info] (#general-info) 
-2. [TEchnologies] (#technologies)
-3. [Installation] (#installation)
-4. [Description] (#description)
+- [Open-Objective Data Mining of Real World Vehicle Data](#open-objective-data-mining-of-real-world-vehicle-data)
+  - [Table of Contents](#table-of-contents)
+  - [General Info](#general-info)
+  - [Technologies](#technologies)
+  - [Installation](#installation)
 
 ## General Info 
 ***
@@ -27,4 +28,3 @@ $ npm install
 $ npm start
 ```
 Side information: To use the application in a special environment use ```lorem ipsum``` to start
-
