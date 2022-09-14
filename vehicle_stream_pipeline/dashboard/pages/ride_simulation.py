@@ -12,7 +12,8 @@ from dash import MATCH, Dash, Input, Output, callback, dcc, html
 
 from vehicle_stream_pipeline.utils import ride_simulation as rs
 
-repo = git.Repo(".", search_parent_directories=True).git.rev_parse("--show-toplevel")
+repo = git.Repo(".", search_parent_directories=True).git.rev_parse(
+    "--show-toplevel")
 
 dash.register_page(__name__)
 
@@ -21,7 +22,6 @@ rides_df = pd.read_csv(f"{repo}/data/cleaning/data_cleaned.csv")
 rides_df = rides_df[(rides_df["state"] == "completed")]
 rides_df["scheduled_to"] = pd.to_datetime(rides_df["scheduled_to"])
 
-# sim_df_small = pd.read_csv(f"{repo}/data/simulated/sim_rides_1808_9.csv")
 sim_df_large = pd.read_csv(f"{repo}/data/simulated/ride_simulation.csv")
 sim_df_large["scheduled_to"] = pd.to_datetime(sim_df_large["scheduled_to"])
 
@@ -161,14 +161,16 @@ def update_charts(number_simulations=100):
 
     # dataframes for Distplots
     dist_df = rs.transformForDist(rides_df, "Original Rides")
-    dist_df_sim_l = rs.transformForDist(sim_df_large_1, "Simulated Rides large")
+    dist_df_sim_l = rs.transformForDist(
+        sim_df_large_1, "Simulated Rides large")
 
     # dataframe for Boxplot
     boxplot_df = pd.concat([dist_df, dist_df_sim_l])
 
     # dataframe for Piechart Route Visualization
     df_value_counts_rides = rs.transformForRoute(dist_df, "Original Rides")
-    df_value_counts_sim_l = rs.transformForRoute(dist_df_sim_l, "Simulated Rides large")
+    df_value_counts_sim_l = rs.transformForRoute(
+        dist_df_sim_l, "Simulated Rides large")
     known_route_l = (
         df_value_counts_sim_l["route"]
         .loc[df_value_counts_sim_l["route"].isin(df_value_counts_rides["route"])]
@@ -182,7 +184,8 @@ def update_charts(number_simulations=100):
 
     # print(df_value_counts_rides.shape)
     # dataframe for Barchart Route Visualization
-    top_df = rs.transformForBar(10, df_value_counts_rides, df_value_counts_sim_l)
+    top_df = rs.transformForBar(
+        10, df_value_counts_rides, df_value_counts_sim_l)
     # figure bar chart for routes
     fig_routes_bar = px.bar(
         data_frame=top_df,
