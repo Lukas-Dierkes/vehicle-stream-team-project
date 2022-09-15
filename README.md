@@ -3,7 +3,13 @@
 - [1. Open-Objective Data Mining of Real World Vehicle Data](#1-open-objective-data-mining-of-real-world-vehicle-data)
 - [2. Technologies](#2-technologies)
 - [3. Installation](#3-installation)
-- [4. Execution Steps](#4-execution-steps)
+- [4. Folder Structure](#4-folder-structure)
+- [5. How to Use the Project](#5-how-to-use-the-project)
+  - [5.1 Folder structure](#51-folder-structure)
+  - [5.2 Data Pipeline](#52-data-pipeline)
+  - [5.3 Ride Simulation](#53-ride-simulation)
+  - [5.4 Probablistic Graph Model](#54-probablistic-graph-model)
+  - [5.5 Feasibilty Analysis](#55-feasibilty-analysis)
 
 ## 1. Open-Objective Data Mining of Real World Vehicle Data 
  
@@ -14,7 +20,7 @@ Within the team project of the University of Mannheim, 2 research projects of IN
 
 This project is about **analyzing real world data** of a startup (Mobility-on-Demand) to determine the feasibility of using existing mobility data to support Ines' projects. 
 
-## 2. Technologies 
+## 2. Technologies  
 ***
 In this section a list of the **required technologies** used within the project is provided:
 * [pip](https://pypi.org/project/pip/): Version 22.2.2
@@ -67,7 +73,44 @@ $ git clone https://github.com/networkx/networkx.git
 $ cd networkx
 $ pip install -e .[default]
 ```
-## 4. Execution Steps  
 
+## 4. Folder Structure 
+***
+This table is used to briefly illustrate the folder structure of the project.  
+| Folder        | Description        |
+| ------------- | ------------- |
+| [/vehicle-stream-team-project/data](https://github.com/Lukas-Dierkes/vehicle-stream-team-project/tree/master/data) | Contains all **external & resulting data** in the subfolders |
+| [/vehicle-stream-team-project/vehicle_stream_pipeline](https://github.com/Lukas-Dierkes/vehicle-stream-team-project/tree/master/vehicle_stream_pipeline)  | Contains   |
+| [/vehicle-stream-team-project/vehicle_stream_pipeline/dashboard](https://github.com/Lukas-Dierkes/vehicle-stream-team-project/tree/master/vehicle_stream_pipeline/dashboard)  | Contains   |
+| [/vehicle-stream-team-project/vehicle_stream_pipeline/other](https://github.com/Lukas-Dierkes/vehicle-stream-team-project/tree/master/vehicle_stream_pipeline/other)  | Contains   |
+| [/vehicle-stream-team-project/vehicle_stream_pipeline/utils](https://github.com/Lukas-Dierkes/vehicle-stream-team-project/tree/master/vehicle_stream_pipeline/dashboard)  | Contains   |
+
+
+All external data will be placed in the folder ***/vehicle-stream-team-project/data***.
+## 5. How to Use the Project  
+***
+In this section, the **individual steps** are shown and gone through using examples so that the **live dashboard** with the various analyses can be executed at the end.
+
+### 5.1 Folder structure
+***
+First of all, the individual data from MoD must be manually inserted from SharePoint into the folder structure. Since the data is confidential, you need an access permission to this data. 
+
+Using the table, please assign the files to the appropriate folders:
+| File          | Folder        |
+| ------------- | ------------- |
+| Rides_***.xlsx  | /vehicle-stream-team-project/data/normal_rides |
+| Content Cell  | Content Cell  |
+
+### 5.2 Data Pipeline  
+***
+
+### 5.3 Ride Simulation 
+***
+
+### 5.4 Probablistic Graph Model 
+***
+
+### 5.5 Feasibilty Analysis 
+***
 
 
