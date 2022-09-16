@@ -893,6 +893,13 @@ def add_shared_rides(df, vehicle_usage_df, external_df):
 
 
 def data_check(df):
+    """This function checks the resulting DataFrames for any mistakes regarding the ordering, calculations and outliers.
+    Args:
+        df: Path to the folder which stores the excel sheets.
+
+    Returns:
+        df, df_incorrect: The checked DataFrame excluding the bugs & a DataFrame with the incorrect lines.
+    """
     # check the most important orderings and calculations - move incorrect entities into df_incorrect
     df = df[df["state"] == "completed"]
 
@@ -1038,7 +1045,7 @@ def data_check(df):
         | ((df.trip_time - df.shortest_ridetime) != df.delay)
     ]
 
-    # filiter the biggest outliers
+    # filter the biggest outliers
     # pickup_arrival_time
     df_incorrect = df.loc[
         (df.pickup_arrival_time >= 10000)

@@ -114,13 +114,11 @@ The above resulting .csv files are saved in the folder *data/other*.
 
 ### 5.3 Ride Simulation 
 ***
-
-#### 5.3.1 Execution
-*** 
 **Required files:**
 - MoDstops+Preismodell.xlsx
 - data_cleaned.csv
-  
+#### 5.3.1 Execution
+*** 
 The ride simulation can be executed by running the python script **vehicle_stream_pipeline/ride_simulation_execution.py**. The script reads all required files and then automatically extracts the date range in the cleaned ride data, to execute the ride simulation for every given month. However, the date range can simply be adjusted by allocating DateTime objects to the variables start_date and end_date in lines 30-31:
 ```
 # get date range from orignal data, to execute rides simulation for every given month
