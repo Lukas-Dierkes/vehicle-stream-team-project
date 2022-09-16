@@ -1,4 +1,4 @@
-## Table of Contents 
+# Table of Contents 
 - [Table of Contents](#table-of-contents)
 - [1. Open-Objective Data Mining of Real World Vehicle Data](#1-open-objective-data-mining-of-real-world-vehicle-data)
 - [2. Technologies](#2-technologies)
@@ -7,6 +7,7 @@
 - [5. How to Use the Project](#5-how-to-use-the-project)
   - [5.1 Combine external data](#51-combine-external-data)
   - [5.2 Data Pipeline](#52-data-pipeline)
+    - [5.2.1 Functions](#521-functions)
   - [5.3 Ride Simulation](#53-ride-simulation)
     - [5.3.1 Execution](#531-execution)
     - [5.3.2 Main Function: generateRideSpecs()](#532-main-function-generateridespecs)
@@ -14,7 +15,7 @@
   - [5.4 Probablistic Graph Model](#54-probablistic-graph-model)
   - [5.5 Feasibilty Analysis](#55-feasibilty-analysis)
 
-## 1. Open-Objective Data Mining of Real World Vehicle Data 
+# 1. Open-Objective Data Mining of Real World Vehicle Data 
  
 ***
 Within the team project of the University of Mannheim, 2 research projects of INES were presented:
@@ -23,7 +24,7 @@ Within the team project of the University of Mannheim, 2 research projects of IN
 
 This project is about **analyzing real world data** of a startup (Mobility-on-Demand) to determine the feasibility of using existing mobility data to support Ines' projects. 
 
-## 2. Technologies  
+# 2. Technologies  
 ***
 In this section a list of the **required technologies** used within the project is provided:
 * [pip](https://pypi.org/project/pip/): Version 22.2.2
@@ -55,7 +56,7 @@ In this section a list of the **required technologies** used within the project 
 * [geopandas](https://geopandas.org/en/stable/): Version 0.11.0
 * [Shapley (shapely.geometry)](https://shapely.readthedocs.io/en/stable/manual.html): Version 1.7.1
 
-## 3. Installation 
+# 3. Installation 
 ***
 A little intro about the **installation** (macOS/Unix). First you need to clone the repository to one of the folders you have chosen. Next we worked in a **virtual environment**, to set it up you can proceed the following **steps**:   
 ```
@@ -77,7 +78,7 @@ $ cd networkx
 $ pip install -e .
 ```
 
-## 4. Folder Structure 
+# 4. Folder Structure 
 ***
 This table is used to briefly illustrate the folder structure of the project.  
 | Folder        | Description        |
@@ -88,11 +89,11 @@ This table is used to briefly illustrate the folder structure of the project.
 | [/vehicle-stream-team-project/vehicle_stream_pipeline/other](https://github.com/Lukas-Dierkes/vehicle-stream-team-project/tree/master/vehicle_stream_pipeline/other)  | Contains old scripts for connection to **SharePoint** and **SQL** |
 | [/vehicle-stream-team-project/vehicle_stream_pipeline/utils](https://github.com/Lukas-Dierkes/vehicle-stream-team-project/tree/master/vehicle_stream_pipeline/dashboard)  | Contains all the scripts needed for the **data cleaning**, the **probablistic model**, the **ride simulation** and the **feasibility analysis** |
 
-## 5. How to Use the Project  
+# 5. How to Use the Project  
 ***
 In this section, the **individual steps** are shown and gone through using examples so that the **live dashboard** with the various analyses can be executed at the end.
 
-### 5.1 Combine external data 
+## 5.1 Combine external data 
 ***
 First of all, the individual data from MoD must be manually inserted from SharePoint into the folder structure. Since the data is confidential, you need an access permission to this data. 
 
@@ -109,15 +110,58 @@ After the files are inserted into the correct folders, you can start running the
 3. **rides_combined**: Here we iterated over each day and collected the data for each day itself. Surprisingly, this is different from the **mtd_combined.csv** and it seems that this data is more accurate. So we will use this data frame for further analysis
 
 The above resulting .csv files are saved in the folder *data/other*.
-### 5.2 Data Pipeline  
+## 5.2 Data Pipeline  
 ***
+For starting the data pipeline you have to run the **vehicle_stream_pipeline/data_cleaning_execution.py** script, which reads all required files and then automatically eliminates the duplicates, cleans the data, adds shared rides and checks if the data is correctly calculated and ordered.
 
-### 5.3 Ride Simulation 
+**Required files:**
+- rides_combined.csv
+- MoDstops+Preismodell.xlsx
+- Autofleet_Rides with External ID_2021+2022-05-15.xlsx
+
+### 5.2.1 Functions
+***
+ 1. Clean Duplicates 
+   
+    First the function ***clean_duplicates(df)*** is called. As the name already mentions, this function handles the **duplicates**. The lines which are a duplicate of another id are removed and the missing attributes of an id are completed with those of the duplicate. In the end we get a DataFrame without duplicate id's. 
+
+ 2. Data Cleaning
+
+    The ***data_cleaning(df, df_stops)*** function performs several other functions to help check and clean the values of the respective attributes. Different assumptions were given by MoD or made in the team, so that the planned data correspond as realistically as possible to the actual system. <br>
+    Below is a table explaining the various functions being used: 
+
+    | Function      | Description        |
+    | ------------- | ------------- |
+    | ***check_format(df, col_type_dic)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
+    | ***clean_ride_id(df)*** | Fills empty id's |
+    | ***clean_distance(df)*** | Cleans the distance where the pickup_address == dropoff_address |
+    | ***clean_addresses(df, df_stops)*** | Checks if the addresses match those of the MoD Stop table and exports a list with the addresses that do not match |
+    | ***clean_created_at(df)*** | Converts of created_at column to datetime format |
+    | ***clean_scheduled_to(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
+    | ***clean_dispatched_at(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
+    | ***clean_vehicle_arrived_at(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
+    | ***clean_arriving_push(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
+    | ***clean_earlierst_pickup_expectation(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
+    | ***clean_pickup_at(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
+    | ***clean_pickup_eta(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
+    | ***clean_pickup_first_eta(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
+    | ***clean_dropoff_at(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
+    | ***clean_dropoff_eta(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
+    | ***clean_dropoff_first_eta(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
+    | ***clean_time_periods(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
+    | ***clean_ratings(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
+
+ 3. Add Shared Rides 
+ 4. Data Check 
+
+
+    
+## 5.3 Ride Simulation 
 ***
 **Required files:**
 - MoDstops+Preismodell.xlsx
 - data_cleaned.csv
-#### 5.3.1 Execution
+### 5.3.1 Execution
 *** 
 The ride simulation can be executed by running the python script **vehicle_stream_pipeline/ride_simulation_execution.py**. The script reads all required files and then automatically extracts the date range in the cleaned ride data, to execute the ride simulation for every given month. However, the date range can simply be adjusted by allocating DateTime objects to the variables start_date and end_date in lines 30-31:
 ```
@@ -137,7 +181,7 @@ Finally, the script iterates over the months of the defined date range and simul
 new_rides_all.to_csv(f"{repo}/data/simulated/ride_simulation.csv")
 ```
 
-#### 5.3.2 Main Function: generateRideSpecs()
+### 5.3.2 Main Function: generateRideSpecs()
 ***
 New artificially simulated rides can be generate with the function generateRideSpecs(oldRides, ridestops, routes, n, month, year), where:
 - **oldRides** = DataFrame with original rides (basis for probability distributions)
@@ -149,7 +193,7 @@ New artificially simulated rides can be generate with the function generateRideS
 
 In an initial step, the function creates an empty DataFrame ‘newRides’ with all needed columns. Then, all needed attributes of that DataFrame are incrementally filled for all n new rides through help functions (see following sections). As a result, we receive a DataFrame with n completed rides in the specified month of the specified year. 
 
-#### 5.3.3. Help Functions 
+### 5.3.3. Help Functions 
 ***
 1. **General Attributes**
   
@@ -221,10 +265,10 @@ In an initial step, the function creates an empty DataFrame ‘newRides’ with 
    - **‘delay’** = ‘trip_time’ – ‘shortest_ridetime’
    - **‘longer_route_factor’** = ‘ride_time’ / ‘shortest_ridetime’
 
-### 5.4 Probablistic Graph Model 
+## 5.4 Probablistic Graph Model 
 ***
 
-### 5.5 Feasibilty Analysis 
+## 5.5 Feasibilty Analysis 
 ***
 
 
