@@ -57,6 +57,14 @@ def create_overall_dataframes(path):
 
 
 def clean_duplicates(df):
+    """This function checks for duplicates in the DataFrame and only retains the ids with most filled attributes (scheduled_to).
+
+    Args:
+        df: rides_combined.csv.
+
+    Returns:
+        df: DataFrame w/o duplicates
+    """
     duplicate_ids = df[df.duplicated(subset=["id"]) & (df["id"].isna() == False)]["id"]
     duplicates = df[df["id"].isin(duplicate_ids)]
     duplicates = duplicates.sort_values(["id", "scheduled_to"])
@@ -89,6 +97,14 @@ def clean_duplicates(df):
 
 # Format-Check
 def check_format(df, col_type_dict):
+    """This function checks the format in the DataFrame.
+
+    Args:
+        df, col_type_dict: DataFrame and param col_type_dic.
+
+    Returns:
+        df, df_inconsistencies: DataFrame with checked format and DataFrame with inconsitent format
+    """
     df_inconsistencies = pd.DataFrame(columns=list(df.columns))
     # check time format in order to avoid errors in cleaning
     for col, col_type in col_type_dict.items():
@@ -165,12 +181,28 @@ def check_format(df, col_type_dict):
 
 
 def clean_free_ride(df):
+    """This function checks the format in the DataFrame.
+
+    Args:
+        df: DataFrame
+
+    Returns:
+        free_ride: DataFrame with cleaned free-ride column
+    """
     free_ride = np.where(df["free_ride"] == 1, True, False)
     return free_ride
 
 
 # Attribute: 'id'
 def clean_ride_id(df):
+    """This function checks the format in the DataFrame.
+
+    Args:
+        df, col_type_dict: DataFrame and param col_type_dic.
+
+    Returns:
+        df, df_inconsistencies: DataFrame with checked format and DataFrame with inconsitent format
+    """
     id = pd.DataFrame(data=df.loc[:, "id"], columns=["id"])
     id.id.fillna(df.created_from_offer.astype("Int64"), inplace=True)
     return id
@@ -795,7 +827,7 @@ def data_cleaning(df, df_stops):
     return df
 
 
-def add_shared_rides(df, vehicle_usage_df, external_df):
+#def add_shared_rides(df, vehicle_usage_df, external_df):
     print("add shared rides")
 
     # vehicle_usage_df preprocessing - filteirng on Stop Point type and status + drop remaining duplicates

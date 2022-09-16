@@ -21,7 +21,7 @@ df = dc.clean_duplicates(df)
 
 df = dc.data_cleaning(df, df_stops)
 
-df = dc.add_shared_rides(df, vehicle_usage_df, external_df)
+#df = dc.add_shared_rides(df, vehicle_usage_df, external_df)
 
 print("check cleaned data")
 df, df_incorrect = dc.data_check(df)
