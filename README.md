@@ -180,7 +180,8 @@ In an initial step, the function creates an empty DataFrame ‘newRides’ with 
     - Case 1: if **scheduled** ride then ‘dispatched_at’ = ‘scheduled_at’ - 8 min
     - Case 2: if **immediate** ride then ‘dispatched_at’ = ‘scheduled_at’
 
-    This paragraph is about the simulation of all attributes related to the arrival of the vehicle at the pickup address: **’vehicle_arrived_at’** and **‘pickup_arrival_time’**. The function ***generateArrival(oldRides, newRides)*** returns n random timestamps for these attributes and begins with the ‘vehicle_arrived_at’ timestamp. Again, we need to distinguish between prebooked and immediate rides here because for prebooked rides the driver knows about the upcoming ride 8 minutes before the scheduled pickup time. Therefore, we use the following logic:
+    This paragraph is about the simulation of all attributes related to the arrival of the vehicle at the pickup address: **’vehicle_arrived_at’** and **‘pickup_arrival_time’**. The function ***generateArrival(oldRides, newRides)*** returns n random timestamps for these attributes and begins with the ‘vehicle_arrived_at’ timestamp. Again, we need to distinguish between prebooked and immediate rides here because for prebooked rides the driver knows about the upcoming ride 8 minutes before the scheduled pickup time. <br>
+    Therefore, we use the following logic:
     - Case 1: if **scheduled** ride then ‘vehicle_arrived_at’ = ‘scheduled_to’ + random scheduling deviation (based on probability distribution of ‘scheduling_deviation’ = ‘vehicle_arrived_at’ – ‘scheduled_to’ in original data
     - Case 2: if **immediate** ride then ‘vehicle_arrived_at’ = ‘scheduled_to’ + random ‘pickup_arrival_time’ (based on probability distribution of attribute ‘pickup_arrival_time’ in original data)
   
