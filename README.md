@@ -5,7 +5,7 @@
 - [3. Installation](#3-installation)
 - [4. Folder Structure](#4-folder-structure)
 - [5. How to Use the Project](#5-how-to-use-the-project)
-  - [5.1 Folder structure](#51-folder-structure)
+  - [5.1 Combine external data](#51-combine-external-data)
   - [5.2 Data Pipeline](#52-data-pipeline)
   - [5.3 Ride Simulation](#53-ride-simulation)
   - [5.4 Probablistic Graph Model](#54-probablistic-graph-model)
@@ -71,7 +71,7 @@ At the end, install the **requirements.txt** file which should install all the r
 $ pip uninstall networkx
 $ git clone https://github.com/networkx/networkx.git
 $ cd networkx
-$ pip install -e .[default]
+$ pip install -e .
 ```
 
 ## 4. Folder Structure 
@@ -80,26 +80,33 @@ This table is used to briefly illustrate the folder structure of the project.
 | Folder        | Description        |
 | ------------- | ------------- |
 | [/vehicle-stream-team-project/data](https://github.com/Lukas-Dierkes/vehicle-stream-team-project/tree/master/data) | Contains all **external & resulting data** in the subfolders |
-| [/vehicle-stream-team-project/vehicle_stream_pipeline](https://github.com/Lukas-Dierkes/vehicle-stream-team-project/tree/master/vehicle_stream_pipeline)  | Contains   |
-| [/vehicle-stream-team-project/vehicle_stream_pipeline/dashboard](https://github.com/Lukas-Dierkes/vehicle-stream-team-project/tree/master/vehicle_stream_pipeline/dashboard)  | Contains   |
-| [/vehicle-stream-team-project/vehicle_stream_pipeline/other](https://github.com/Lukas-Dierkes/vehicle-stream-team-project/tree/master/vehicle_stream_pipeline/other)  | Contains   |
-| [/vehicle-stream-team-project/vehicle_stream_pipeline/utils](https://github.com/Lukas-Dierkes/vehicle-stream-team-project/tree/master/vehicle_stream_pipeline/dashboard)  | Contains   |
+| [/vehicle-stream-team-project/vehicle_stream_pipeline](https://github.com/Lukas-Dierkes/vehicle-stream-team-project/tree/master/vehicle_stream_pipeline)  | Contains all **execution files**, **the subfolders** for the **dashboard** and **utilities** |
+| [/vehicle-stream-team-project/vehicle_stream_pipeline/dashboard](https://github.com/Lukas-Dierkes/vehicle-stream-team-project/tree/master/vehicle_stream_pipeline/dashboard)  | Contains all the files to build and run the **dashboard** |
+| [/vehicle-stream-team-project/vehicle_stream_pipeline/other](https://github.com/Lukas-Dierkes/vehicle-stream-team-project/tree/master/vehicle_stream_pipeline/other)  | Contains old files for connection to **SharePoint** and **SQL** |
+| [/vehicle-stream-team-project/vehicle_stream_pipeline/utils](https://github.com/Lukas-Dierkes/vehicle-stream-team-project/tree/master/vehicle_stream_pipeline/dashboard)  | Contains all the files needed for the **data cleaning**, the **probablistic model**, the **ride simulation** and the **feasibility analysis** |
 
-
-All external data will be placed in the folder ***/vehicle-stream-team-project/data***.
 ## 5. How to Use the Project  
 ***
 In this section, the **individual steps** are shown and gone through using examples so that the **live dashboard** with the various analyses can be executed at the end.
 
-### 5.1 Folder structure
+### 5.1 Combine external data 
 ***
 First of all, the individual data from MoD must be manually inserted from SharePoint into the folder structure. Since the data is confidential, you need an access permission to this data. 
 
 Using the table, please assign the files to the appropriate folders:
-| File          | Folder        |
-| ------------- | ------------- |
-| Rides_***.xlsx  | /vehicle-stream-team-project/data/normal_rides |
-| Content Cell  | Content Cell  |
+| File          | Folder        | Description        |
+| ------------- | ------------- | ------------- |
+| ***Rides_.xlsx***  | [/vehicle-stream-team-project/data/normal_rides](https://github.com/Lukas-Dierkes/vehicle-stream-team-project/tree/master/data/normal_rides) | Include the normal rides downloaded from the MoD Sharepoint (usually one per month) |
+| ***MoDstops+Preismodell.xlsx***  | [/vehicle-stream-team-project/data/other](https://github.com/Lukas-Dierkes/vehicle-stream-team-project/tree/master/data/other) | Include the Modstops files here which you can download from the MoD sharepoint |
+| ***Autofleet_Rides with External ID_2021+2022-05-15.xlsx***/ ***MoD_Vehicle Usage_2021+2022-05-15.xlsx*** | [/vehicle-stream-team-project/data/vehicle_data](https://github.com/Lukas-Dierkes/vehicle-stream-team-project/tree/master/data/vehicle_data) | Include the rides with external IDs file & the vehicle usage report here which you can download from the MoD sharepoint |
+
+After the files are inserted into the correct folders, you can start running the **/vehicle_stream_pipeline/combine_ride_execution.py**. In this file, the function ***create_overall_dataframe*** is called, which creates three large data frames from the given excel files of MoD, so that we combine the data from all months.
+1. **kpi_combined.csv**: This is the monthly kpi statistics combined (rarely used)
+2. **mtd_combined.csv**: This file contains all the rides for each day of the month combined according to the excel spreadsheet
+3. **rides_combined**: Here we iterated over each day and collected the data for each day itself. Surprisingly, this is different from the **mtd_combined.csv** and it seems that this data is more accurate. So we will use this data frame for further analysis
+
+
+
 
 ### 5.2 Data Pipeline  
 ***
