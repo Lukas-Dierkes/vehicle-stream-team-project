@@ -63,7 +63,7 @@ def clean_duplicates(df):
         df: rides_combined.csv.
 
     Returns:
-        df: DataFrame w/o duplicates
+        df: DataFrame w/o duplicates.
     """
     duplicate_ids = df[df.duplicated(subset=["id"]) & (df["id"].isna() == False)]["id"]
     duplicates = df[df["id"].isin(duplicate_ids)]
@@ -97,13 +97,13 @@ def clean_duplicates(df):
 
 # Format-Check
 def check_format(df, col_type_dict):
-    """This function checks the format in the DataFrame.
+    """This function checks the format in the dataframe.
 
     Args:
-        df, col_type_dict: DataFrame and param col_type_dic.
+        df, col_type_dict: Dataframe and param col_type_dic.
 
     Returns:
-        df, df_inconsistencies: DataFrame with checked format and DataFrame with inconsitent format
+        df, df_inconsistencies: Dataframe with checked format and DataFrame with inconsitent format.
     """
     df_inconsistencies = pd.DataFrame(columns=list(df.columns))
     # check time format in order to avoid errors in cleaning
@@ -181,13 +181,13 @@ def check_format(df, col_type_dict):
 
 
 def clean_free_ride(df):
-    """This function checks the format in the DataFrame.
+    """This function sets all values from the free_ride column to FALSE or TRUE.
 
     Args:
-        df: DataFrame
+        df: Dataframe.
 
     Returns:
-        free_ride: DataFrame with cleaned free-ride column
+        free_ride: Dataframe with cleaned free-ride column.
     """
     free_ride = np.where(df["free_ride"] == 1, True, False)
     return free_ride
@@ -195,22 +195,27 @@ def clean_free_ride(df):
 
 # Attribute: 'id'
 def clean_ride_id(df):
-    """This function checks the format in the DataFrame.
+    """This function fills the empty id's.
 
     Args:
-        df, col_type_dict: DataFrame and param col_type_dic.
+        df: Dataframe.
 
     Returns:
-        df, df_inconsistencies: DataFrame with checked format and DataFrame with inconsitent format
+        id: Dateframe with cleaned id's.
     """
     id = pd.DataFrame(data=df.loc[:, "id"], columns=["id"])
     id.id.fillna(df.created_from_offer.astype("Int64"), inplace=True)
     return id
 
-
-# Attribute: 'distance' clean distance where pickup_address == dropoff_address
 def clean_distance(df):
-    # remove observations where pickup_address == dropoff_address
+    """This function cleans distance where pickup_address == dropoff_address.
+
+    Args:
+        df: Dataframe.
+
+    Returns:
+        id: Dateframe without same pickup & dropoff address.
+    """
     df = df[df["pickup_address"] != df["dropoff_address"]]
     return df
 
@@ -239,6 +244,14 @@ def get_stop_id(address, df_stops):
 
 
 def clean_addresses(df, df_stops):
+    """This function checks if the addresses match those of the MoD Stop table and exports a list with the addresses that do not match.  
+
+    Args:
+        df, df_stops: Cleaning dataframe and MoD Stops dataframe.
+
+    Returns:
+        addresse: Dateframe with cleaned addresses.
+    """
     addresses = pd.DataFrame(
         data=df.loc[:, ["pickup_address", "dropoff_address"]],
         columns=["pickup_address", "dropoff_address"],
@@ -262,6 +275,14 @@ def clean_addresses(df, df_stops):
 
 # Attribute: 'created_at'
 def clean_created_at(df):
+    """This function sets the format of created_at to datetime.
+
+    Args:
+        df: Cleaning dataframe.
+
+    Returns:
+        created_at: Dateframe with cleaned created_at column.
+    """
     created_at = pd.to_datetime(df["created_at"])
     return created_at
 
