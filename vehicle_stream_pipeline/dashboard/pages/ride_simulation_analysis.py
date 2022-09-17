@@ -12,7 +12,7 @@ from vehicle_stream_pipeline.utils import feasibility_analysis as fa
 repo = git.Repo(".", search_parent_directories=True).git.rev_parse("--show-toplevel")
 
 # Read in graph metrics for all routes
-graph_metrics_df = pd.read_csv(f"{repo}/data/regression/graph_metrics.csv")
+graph_metrics_df = pd.read_csv(f"{repo}/data/regression/graph_metrics_test.csv")
 
 # Read in graph metrics for main routes
 graph_metrics_main_routes_df = pd.read_csv(
