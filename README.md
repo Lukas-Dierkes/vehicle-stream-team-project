@@ -91,7 +91,7 @@ This table is used to briefly illustrate the folder structure of the project.
 
 # 5. How to Use the Project  
 ***
-In this section, the **individual steps** are shown and gone through using examples so that the **live dashboard** with the various analyses can be executed at the end.
+In this section, the **individual steps** are shown and gone through using examples so that the **live dashboard** with the various analyses can be executed at the end. For a walkthrough, please refer to the **vehicle_stream_pipeline/walkthrough.ipynb** notebook.
 
 ## 5.1 Combine external data 
 ***
@@ -112,7 +112,8 @@ After the files are inserted into the correct folders, you can start running the
 The above resulting .csv files are saved in the folder *data/other*.
 ## 5.2 Data Pipeline  
 ***
-For starting the data pipeline you have to run the **vehicle_stream_pipeline/data_cleaning_execution.py** script, which reads all required files and then automatically eliminates the duplicates, cleans the data, adds shared rides and checks if the data is correctly calculated and ordered.
+For starting the data pipeline you have to run the **vehicle_stream_pipeline/data_cleaning_execution.py** script, which reads all required files and then automatically eliminates the duplicates, cleans the data, adds shared rides and checks if the data is correctly calculated and ordered. For the datapipeline we have made use of the descriptions and equations of MoD for the different attributes. <br>
+Based on the following table you can see an overview of the attributes:
 
 **Required files:**
 - rides_combined.csv
@@ -127,8 +128,8 @@ For starting the data pipeline you have to run the **vehicle_stream_pipeline/dat
 
  2. Data Cleaning
 
-    The ***data_cleaning(df, df_stops)*** function performs several other functions to help check and clean the values of the respective attributes. Different assumptions were given by MoD or made in the team, so that the planned data correspond as realistically as possible to the actual system. <br>
-    Below is a table explaining the various functions being used: 
+    The ***data_cleaning(df, df_stops)*** function performs several other functions to detect and correct inaccurate records from the data. Different assumptions were given by MoD or made in the team, so that the planned data correspond as realistically as possible to the actual system. <br>
+    Below is a table explaining the various functions being used:
 
     | Function      | Description        |
     | ------------- | ------------- |
@@ -136,24 +137,25 @@ For starting the data pipeline you have to run the **vehicle_stream_pipeline/dat
     | ***clean_ride_id(df)*** | Fills empty id's |
     | ***clean_distance(df)*** | Cleans the distance where the pickup_address == dropoff_address |
     | ***clean_addresses(df, df_stops)*** | Checks if the addresses match those of the MoD Stop table and exports a list with the addresses that do not match |
-    | ***clean_created_at(df)*** | Converts of created_at column to datetime format |
-    | ***clean_scheduled_to(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
-    | ***clean_dispatched_at(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
-    | ***clean_vehicle_arrived_at(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
-    | ***clean_arriving_push(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
-    | ***clean_earlierst_pickup_expectation(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
-    | ***clean_pickup_at(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
-    | ***clean_pickup_eta(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
-    | ***clean_pickup_first_eta(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
-    | ***clean_dropoff_at(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
-    | ***clean_dropoff_eta(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
-    | ***clean_dropoff_first_eta(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
-    | ***clean_time_periods(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
-    | ***clean_ratings(df)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
+    | ***clean_created_at(df)*** | Converts created_at column to datetime format |
+    | ***clean_scheduled_to(df)*** | Fills the NaN values with the created_at time and notes that scheduled_to occurs after created_at |
+    | ***clean_dispatched_at(df)*** | Fills dispatched_at = scheduled_to - 8Min, if it is a scheduled ride otherwise fill with created_at. Clean lines where scheduled_to - 8min is smaller than created_at because otherwise dispatched_at < created_at |
+    | ***clean_vehicle_arrived_at(df)*** | Since pickup_arrival_time = vehicle_arrivd_at - dispatched_at, the NaN values are filled with dispatched_at + the average pickup arrival time calculated using the ***getAvgPickupArrivalTime(df)*** function. However, only if dispatched_at + average pickup time is less than pickup_at we add the average time to dispatched_at otherwise we take pickup_at. It also checks if vehicle_arrived_at occurs on the same day as scheduled_to. In special cases we use arriving_push + 3min as time |
+    | ***clean_arriving_push(df)*** | Fills NaN values with vehicle_arrived_at - 3Min & checks the ordering e.g. that arriving_push is after created_at |
+    | ***clean_earlierst_pickup_expectation(df)*** | Fills column with dispatched_at + 3min in normal cases when not a scheduled_ride. If it is a scheduled ride, then it is filled with scheduled_to + 5min |
+    | ***clean_pickup_at(df)*** | For this, the average boarding time was calculated first, since boarding_time = pickup_at - vehicle_arrived_at. Fills the NaN values with pickup_eta or with vehicle_arrived_at + avg_boarding_time, if pickup_eta is too far away from scheduled_to. At the end we check the ordering |
+    | ***clean_pickup_eta(df)*** | Fills the NaN values with pickup_at and checks the ordering. For example, pickup_eta must not occur before dispatched_at |
+    | ***clean_pickup_first_eta(df)*** | Fills NaN values and other values of pickup_first_eta if it is not on the same day as scheduled_to with pickup_eta and checks the order |
+    | ***clean_dropoff_at(df)*** | Reformats the shortest_ridetime column into seconds. NaN values are filled with dropoff_eta. If dropoff_eta is too far from scheduled_to, the dropoff_at values are calculated with dropoff_at + the shortest_ridetime. Checks ordering, i.e. that pickup_at time is before dropoff_at |
+    | ***clean_dropoff_eta(df)*** | Fills NaN values with dropoff_at and checks ordering |
+    | ***clean_dropoff_first_eta(df)*** | Fills NaN values with pickup_first_eta + shortest_ride_time and checks ordering. For example dropoff_first_eta doesn't take place before dispatched_at |
+    | ***clean_time_periods(df)*** | After all timestamp attributes have been checked and filled, the time spans in between can be calculated using the MoD equations and entered into the respective columns |
+    | ***clean_ratings(df)*** | Cleans the rating column |
 
- 3. Add Shared Rides 
- 4. Data Check 
+    So, as you can see, in general the incorrect or non-existent values are filled with the values of other times, using the given calculation (see table in 5.2) or making certain assumptions.  
 
+ 3. Data Check 
+    **Note:** 
 
     
 ## 5.3 Ride Simulation 
@@ -270,5 +272,30 @@ In an initial step, the function creates an empty DataFrame ‘newRides’ with 
 
 ## 5.5 Feasibilty Analysis 
 ***
+The Feasibility Analysis is based on the idea to generate the graph metrics **diameter/longest shortest past**  and **average shortest path** for an increasing number of rides and to use these metrics as an input for a regression analysis. In the end the regressed output function should return a number of simulated rides for a certain entered day threshold for a given metric (["diameter_w/o_drones", "avg_w/o_drones", "diameter_with_drones", "avg_with_drones"]).
+
+For the Feasibility Analysis two steps are required:
+
+1. Generate the Regression Metrics based on simulated rides data (Original rides data is currently not enough to solve the problem).
+Execute the script **vehicle_stream_pipeline/metrics_for_regression_execution.py**.
+This script calls the function ***getRegressionMetrics()***, which samples rides for an increasing stepsize, transforms the data samples to a weighted directed graph and calculates the graph metrics for it. The Output is the following:
+
+|#_simulated_rides|diameter_w/o_drones|avg_w/o_drones|diameter_with_drones|avg_with_drones|  
+|10000|...|...|...|...|  
+|25000|...|...|...|...| 
+|...|...|...|...|...| 
+|len(input_df)|...|...|...|...| 
+
+The output is stored in the folder *data/regression*.
+
+2. Perform a Regression on the generated regression metrics - to get the optimized parameters for the regression function.
+The regression outcome can be produced and used in several ways:
+    - ***get_rides_num(max_days, graph_metrics_df, metric="avg_w/o_drones")*** calculates the number of needed rides for a given max_days threshold and a given metric directly and performs the regression within the function via scipy curve_fit.
+    - ***get_opt_parameter(graph_metrics_df, metric="avg_w/o_drones")*** outputs the optimization parameters for a given metric, which can be used as an input for the regression function.
+    - ***regression_function(x, a, b, c)*** takes as input a x value which corresponds to a day threshold. Can be also a list of threshold values to plot a regression curve. The arguments a, b, c are parameters which where optimized via scipy curve_fit and define the the regression funciton distincly.
+	
+The regression function used is an exponential decay function in the following format 'a * np.exp(-b / x) + c'.
+
+All these functions are used to plot the regression curve and state the required number of rides whithin the dashboard file *vehicle_stream_pipeline/dashboard/pages/ride_simulation.py* and the eda jupyter notebook *vehicle_stream_pipeline/eda_for_presentation.ipynb*.
 
 
