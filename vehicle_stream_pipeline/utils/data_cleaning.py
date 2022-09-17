@@ -57,6 +57,14 @@ def create_overall_dataframes(path):
 
 
 def clean_duplicates(df):
+    """This function checks for duplicates in the DataFrame and only retains the ids with most filled attributes (scheduled_to).
+
+    Args:
+        df: rides_combined.csv.
+
+    Returns:
+        df: DataFrame w/o duplicates.
+    """
     duplicate_ids = df[df.duplicated(subset=["id"]) & (df["id"].isna() == False)]["id"]
     duplicates = df[df["id"].isin(duplicate_ids)]
     duplicates = duplicates.sort_values(["id", "scheduled_to"])
@@ -89,6 +97,14 @@ def clean_duplicates(df):
 
 # Format-Check
 def check_format(df, col_type_dict):
+    """This function checks the format in the dataframe.
+
+    Args:
+        df, col_type_dict: Dataframe and param col_type_dic.
+
+    Returns:
+        df, df_inconsistencies: Dataframe with checked format and DataFrame with inconsitent format.
+    """
     df_inconsistencies = pd.DataFrame(columns=list(df.columns))
     # check time format in order to avoid errors in cleaning
     for col, col_type in col_type_dict.items():
@@ -165,20 +181,41 @@ def check_format(df, col_type_dict):
 
 
 def clean_free_ride(df):
+    """This function sets all values from the free_ride column to FALSE or TRUE.
+
+    Args:
+        df: Dataframe.
+
+    Returns:
+        free_ride: Dataframe with cleaned free-ride column.
+    """
     free_ride = np.where(df["free_ride"] == 1, True, False)
     return free_ride
 
 
 # Attribute: 'id'
 def clean_ride_id(df):
+    """This function fills the empty id's.
+
+    Args:
+        df: Dataframe.
+
+    Returns:
+        id: Dateframe with cleaned id's.
+    """
     id = pd.DataFrame(data=df.loc[:, "id"], columns=["id"])
     id.id.fillna(df.created_from_offer.astype("Int64"), inplace=True)
     return id
 
-
-# Attribute: 'distance' clean distance where pickup_address == dropoff_address
 def clean_distance(df):
-    # remove observations where pickup_address == dropoff_address
+    """This function cleans distance where pickup_address == dropoff_address.
+
+    Args:
+        df: Dataframe.
+
+    Returns:
+        id: Dateframe without same pickup & dropoff address.
+    """
     df = df[df["pickup_address"] != df["dropoff_address"]]
     return df
 
@@ -207,6 +244,14 @@ def get_stop_id(address, df_stops):
 
 
 def clean_addresses(df, df_stops):
+    """This function checks if the addresses match those of the MoD Stop table and exports a list with the addresses that do not match.  
+
+    Args:
+        df, df_stops: Cleaning dataframe and MoD Stops dataframe.
+
+    Returns:
+        addresse: Dateframe with cleaned addresses.
+    """
     addresses = pd.DataFrame(
         data=df.loc[:, ["pickup_address", "dropoff_address"]],
         columns=["pickup_address", "dropoff_address"],
@@ -230,12 +275,28 @@ def clean_addresses(df, df_stops):
 
 # Attribute: 'created_at'
 def clean_created_at(df):
+    """This function converts of created_at column to datetime format.
+
+    Args:
+        df: Cleaning dataframe.
+
+    Returns:
+        created_at: Dateframe with cleaned created_at column.
+    """
     created_at = pd.to_datetime(df["created_at"])
     return created_at
 
 
 # Attribute: 'scheduled_to'
 def clean_scheduled_to(df):
+    """Fills the NaN values with the created_at time and notes that scheduled_to occurs after created_at.
+
+    Args:
+        df: Cleaning dataframe.
+
+    Returns:
+        scheduled_to: Dateframe with cleaned scheduled_to column.
+    """
     # clean scheduled_to
     df["scheduled_to"] = pd.to_datetime(df["scheduled_to"])
     df["scheduled_to"] = df["scheduled_to"].fillna(df["created_at"])
@@ -250,6 +311,15 @@ def clean_scheduled_to(df):
 
 # Attribute: 'dispatched_at'
 def clean_dispatched_at(df):
+    """Fills dispatched_at = scheduled_to - 8Min, if it is a scheduled ride otherwise fills with created_at. 
+    Clean lines where scheduled_to - 8min is smaller than created_at because otherwise dispatched_at < created_at.
+    
+    Args:
+        df: Cleaning dataframe.
+
+    Returns:
+        dispatched_at: Dateframe with cleaned dispatched_at column.
+    """
     # Cast to correct dtype
     df["dispatched_at"] = pd.to_datetime(df["dispatched_at"])
     df["scheduled_to"] = pd.to_datetime(df["scheduled_to"])
@@ -274,6 +344,14 @@ def clean_dispatched_at(df):
 
 
 def getAvgPickupArrivalTime(df):
+    """Calculates the average pickup arrrival time. 
+    
+    Args:
+        df: Cleaning dataframe.
+
+    Returns:
+        avg_pickup_arrival_time: Dateframe with cleaned dispatched_to column.
+    """
     # get the average pickup arrival time
     times = [3600, 60, 1]
     df["pickup_arrival_time"] = pd.to_datetime(df.pickup_arrival_time)
@@ -308,6 +386,16 @@ def getAvgPickupArrivalTime(df):
 
 # Attribute: 'vehicle_arrived_at'
 def clean_vehicle_arrived_at(df):
+    """Fills NaN values with dispatched_at + the average pickup arrival time. 
+    However, only if dispatched_at + average pickup time < pickup_at we add the average time to dispatched_at otherwise we take pickup_at.
+    It also checks if vehicle_arrived_at occurs on the same day as scheduled_to. In special cases we use arriving_push + 3min as time.
+
+    Args:
+        df: Cleaning dataframe.
+
+    Returns:
+        vehicle_arrived_at: Dateframe with cleaned vehicle_arrived_at column.
+    """
     df["arriving_push"] = pd.to_datetime(df["arriving_push"])
     vehicle_arrived_at = pd.to_datetime(df["vehicle_arrived_at"])
     df["pickup_at"] = pd.to_datetime(df["pickup_at"])
@@ -371,6 +459,14 @@ def clean_vehicle_arrived_at(df):
 
 # Attribute: 'arriving_push'
 def clean_arriving_push(df):
+    """Fills NaN values with vehicle_arrived_at - 3Min & checks the ordering.
+    
+    Args:
+        df: Cleaning dataframe.
+
+    Returns:
+        arriving_push: Dateframe with cleaned arriving_push column.
+    """
     arriving_push = pd.to_datetime(df["arriving_push"])
 
     arriving_push = df["arriving_push"].fillna(
@@ -393,6 +489,14 @@ def clean_arriving_push(df):
 
 # Attribute: 'earliest_pickup_expectation'
 def clean_earlierst_pickup_expectation(df):
+    """Fills column with dispatched_at + 3min in normal cases when not a scheduled_ride. If scheduled ride --> scheduled_to + 5min.
+    
+    Args:
+        df: Cleaning dataframe.
+
+    Returns:
+        earlierst_pickup_expectation: Dateframe with cleaned earlierst_pickup_expectation column.
+    """
     earlierst_pickup_expectation = pd.to_datetime(df["earliest_pickup_expectation"])
     # earliest pickup expectation is defined as dispatched + 3 Minuten
     earlierst_pickup_expectation = np.where(
@@ -416,6 +520,15 @@ def clean_earlierst_pickup_expectation(df):
 
 # Attribute: 'pickup_at'
 def clean_pickup_at(df):
+    """Fills the NaN values with pickup_eta or with vehicle_arrived_at + avg_boarding_time, if pickup_eta is too far away from scheduled_to.
+    Checks ordering.
+    
+    Args:
+        df: Cleaning dataframe.
+
+    Returns:
+        pickup_at: Dateframe with cleaned pickup_at column.
+    """
     pickup_at = pd.to_datetime(df["pickup_at"])
     pickup_eta = pd.to_datetime(df["pickup_eta"])
     # calculate the average boarding time because boarding_time = pickup_at - vehicle_arrived_at
@@ -436,7 +549,7 @@ def clean_pickup_at(df):
     # fill NaN values
     pickup_at = np.where(
         (pickup_at.isna()) & (df["state"] == "completed"),
-        # if pickup_eta is Nan or pickup_eta is too far away from scheduled_to than fill the values with vehicle_arrived_at + avg boarding time else put pickup_eta as value
+        # if pickup_eta is Nan or pickup_eta is too far away from scheduled_to than fill the values with vehicle_arrived_at + avg_boarding_time else put pickup_eta as value
         np.where(
             (df["pickup_eta"].isna())
             | (pickup_eta - df["scheduled_to"] >= pd.Timedelta(days=1)),
@@ -478,6 +591,14 @@ def clean_pickup_at(df):
 
 # Attribute: 'pickup_eta'
 def clean_pickup_eta(df):
+    """Fills the NaN values with pickup_at and checks the ordering. 
+    
+    Args:
+        df: Cleaning dataframe.
+
+    Returns:
+        pickup_eta: Dateframe with cleaned pickup_eta column.
+    """
     # Attribute: 'pickup_eta'
     pickup_eta = pd.to_datetime(df["pickup_eta"])
     pickup_eta = pickup_eta.fillna(df["pickup_at"])
@@ -496,6 +617,14 @@ def clean_pickup_eta(df):
 
 # Attribute: 'pickup_first_eta'
 def clean_pickup_first_eta(df):
+    """Fills NaN values and other values of pickup_first_eta if it is not on the same day as scheduled_to with pickup_eta and checks the order.
+    
+    Args:
+        df: Cleaning dataframe.
+
+    Returns:
+        pickup_first_eta: Dateframe with cleaned pickup_first_eta column.
+    """
     pickup_first_eta = pd.to_datetime(df["pickup_first_eta"])
     pickup_first_eta = pickup_first_eta.fillna(df["pickup_eta"])
 
@@ -517,6 +646,16 @@ def clean_pickup_first_eta(df):
 
 # Attribute: 'dropoff_at'
 def clean_dropoff_at(df):
+    """Reformats the shortest_ridetime column into seconds. 
+    NaN values are filled with dropoff_eta. If dropoff_eta is too far from scheduled_to, the dropoff_at values are calculated with dropoff_at + the shortest_ridetime. 
+    Checks ordering.
+
+    Args:
+        df: Cleaning dataframe.
+
+    Returns:
+        dropoff_at: Dateframe with cleaned dropoff_at column.
+    """
     df["dropoff_at"] = pd.to_datetime(df["dropoff_at"])
     dropoff_eta = pd.to_datetime(df["dropoff_eta"])
     ftr = [3600, 60, 1]
@@ -553,6 +692,14 @@ def clean_dropoff_at(df):
 
 # Attribute: 'dropoff_eta'
 def clean_dropoff_eta(df):
+    """Fills NaN values with dropoff_at and checks ordering.
+    
+    Args:
+        df: Cleaning dataframe.
+
+    Returns:
+        dropoff_eta: Dateframe with cleaned dropoff_eta column.
+    """
     dropoff_eta = pd.to_datetime(df["dropoff_eta"])
     dropoff_eta = dropoff_eta.fillna(df["dropoff_at"])
 
@@ -570,6 +717,14 @@ def clean_dropoff_eta(df):
 
 # Attribute: 'dropoff_first_eta'
 def clean_dropoff_first_eta(df):
+    """Fills NaN values with pickup_first_eta + shortest_ride_time and checks ordering. For example dropoff_first_eta doesn't take place before dispatched_at.
+    
+    Args:
+        df: Cleaning dataframe.
+
+    Returns:
+        dropoff_first_eta: Dateframe with cleaned dropoff_first_eta column.
+    """
     dropoff_first_eta = pd.to_datetime(df["dropoff_first_eta"])
     ftr = [3600, 60, 1]
     shortest_ridetime = (
@@ -599,6 +754,14 @@ def clean_dropoff_first_eta(df):
 
 # Attributes: ['pickup_arrival_time', 'arrival_deviation', 'waiting_time', 'boarding_time', 'ride_time', 'trip_time', 'shortest_ridetime', 'delay', 'longer_route_factor']
 def clean_time_periods(df):
+    """In this function, the calculations for the time attributes are performed which can be calculated based on the previously cleared times using the equations of MoD.  
+    
+    Args:
+        df: Cleaning dataframe.
+
+    Returns:
+        df: Dateframe with correct calculated time periods.
+    """
     # Attribute: 'pickup_arrival_time'
     df["pickup_arrival_time"] = (
         df["vehicle_arrived_at"] - df["dispatched_at"]
@@ -689,6 +852,14 @@ def clean_time_periods(df):
 
 # Attribute: 'rating'
 def clean_rating(df):
+    """Cleans the rating column
+    
+    Args:
+        df: Cleaning dataframe.
+
+    Returns:
+        rating: Dateframe with cleaned rating column.
+    """
     rating = df["rating"]
     rating = np.where(
         (
@@ -795,7 +966,7 @@ def data_cleaning(df, df_stops):
     return df
 
 
-def add_shared_rides(df, vehicle_usage_df, external_df):
+#def add_shared_rides(df, vehicle_usage_df, external_df):
     print("add shared rides")
 
     # vehicle_usage_df preprocessing - filteirng on Stop Point type and status + drop remaining duplicates
@@ -893,6 +1064,13 @@ def add_shared_rides(df, vehicle_usage_df, external_df):
 
 
 def data_check(df):
+    """This function checks the resulting DataFrames for any mistakes regarding the ordering, calculations and outliers.
+    Args:
+        df: Path to the folder which stores the excel sheets.
+
+    Returns:
+        df, df_incorrect: The checked DataFrame excluding the bugs & a DataFrame with the incorrect lines.
+    """
     # check the most important orderings and calculations - move incorrect entities into df_incorrect
     df = df[df["state"] == "completed"]
 
@@ -1038,7 +1216,7 @@ def data_check(df):
         | ((df.trip_time - df.shortest_ridetime) != df.delay)
     ]
 
-    # filiter the biggest outliers
+    # filter the biggest outliers
     # pickup_arrival_time
     df_incorrect = df.loc[
         (df.pickup_arrival_time >= 10000)

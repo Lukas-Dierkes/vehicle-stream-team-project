@@ -5,6 +5,7 @@ import git
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import numpy as np
 from dash import MATCH, Input, Output, callback, dcc, html
 
 from vehicle_stream_pipeline.utils import feasibility_analysis as fa
@@ -192,7 +193,10 @@ def update_charts(
     else:
         graph_metrics_df_1 = graph_metrics_main_routes_df.copy()
 
-    # Calculate needed rides
+    # Calculate needed rides and master data for graph
+    range_x = [0,max_days+15]
+    range_y = [0, fa.get_rides_num(0.9, graph_metrics_df_1, current_metric)]
+    x_data_regression = np.linspace(0,graph_metrics_df_1[current_metric].max()*1.1,len(graph_metrics_df_1[current_metric])*20) #needed for flawless regression curve
     needed_rides = fa.get_rides_num(max_days, graph_metrics_df_1, current_metric)
 
     # Update Figure diplaying Orginal Data Scatter Plot, Regression and max_days_line
@@ -203,19 +207,20 @@ def update_charts(
         y="#_simulated_rides",
         color_discrete_sequence=["DarkKhaki"],
         title="Break Even of Rides",
-        range_x=[0, 20],
+        range_x=range_x,
+        range_y=range_y,
     )
     needed_rides_fig1["data"][0]["name"] = "Simulated Rides Data"
     needed_rides_fig1["data"][0]["showlegend"] = False
     # Line Plot of Regressed Data
     needed_rides_fig2 = px.line(
-        x=graph_metrics_df_1[current_metric],
+        x=x_data_regression,
         y=fa.regression_function(
-            graph_metrics_df_1[current_metric],
+            x_data_regression,
             *fa.get_opt_parameter(graph_metrics_df_1, current_metric),
         ),
         color_discrete_sequence=["DarkCyan"],
-        range_x=[0, 20],
+        range_x=range_x,
     )
     needed_rides_fig2["data"][0]["name"] = "Regression of Rides Data"
     needed_rides_fig2["data"][0]["showlegend"] = False
