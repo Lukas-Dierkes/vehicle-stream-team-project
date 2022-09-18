@@ -14,6 +14,7 @@
     - [5.3.3. Help Functions](#533-help-functions)
   - [5.4 Probablistic Graph Model](#54-probablistic-graph-model)
   - [5.5 Feasibilty Analysis](#55-feasibilty-analysis)
+  - [5.6 Live Dashboard](#56-live-dashboard)
 
 # 1. Open-Objective Data Mining of Real World Vehicle Data 
  
@@ -432,4 +433,17 @@ The regression function used is an exponential decay function in the following f
 
 All these functions are used to plot the regression curve and state the required number of rides whithin the dashboard file *vehicle_stream_pipeline/dashboard/pages/ride_simulation.py* and the eda jupyter notebook *vehicle_stream_pipeline/eda_for_presentation.ipynb*.
 
+## 5.6 Live Dashboard
+To be able to launch our live dashboard at the end and thus our finished product, the **build_dashboard.py** must be executed, which you can find under *vehicle_stream_pipeline/dashboard*. Once this script is executed, you can click on the link in the terminal which runs through the scripts that build the 3 pages of the dashboard:  
+- *vehicle_stream_pipeline/dashboard/pages/ride_simulation_analysis.py*
+- *vehicle_stream_pipeline/dashboard/pages/ride_simulation.py*
+- *vehicle_stream_pipeline/dashboard/pages/stops_analysis.py*
+
+On the *stops_analysis* page you will find a map of Neustadt an der Weinstraße and the respective MoD stops. Here, several values can be set or changed, such as whether drones are activated, between which dates the rides took place, or how many simulated rides are used, etc. Finally, the duration of the path based on the shortest path is displayed as well as the shortest path itself. For this purpose, the script uses the mainly the functions in *prob_model.py* as well as those of *ride_simulation.py*.
+
+In the *page ride_simulation* we analyze and visualize the simulated rides. This way we can see how close to everyday life the rides were simulated, i.e. how close the individual values correspond to the actual data sets of MoD. For this we take a sample from the simulated rides and create dataframes for Distplots, for Boxplot, for Piechart and for Barchart Route Visualization. Then we get many different figures like bar chart for routes, pie charts for routes, boxplots of times and distplots of relative frequency over day and week. 
+
+The third and final page - *ride_simulation_analysis* - is about our feasibility analysis and the viability of the system. In this script the functions of the *feasbility_analysis.py* script are most important. Depending on the input value, it is possible to choose between graph metrics based on all routes or only on the main routes. Furthermore, the calculation of the required rides and master data for the graph is performed. Thereby the line plot works as a cursor for the current maximum days. Then we calculate how many parallel rides are present in the sample and thus how many drivers we need. Then we store the number of drivers and hour and the number of parallel rides and hours in a data frame. Finally, we create numbers for drivers per hour and parallel drivers per hour and a text for the output that shows the number of rides needed.
+
 **HAVE FUN**
+ 
