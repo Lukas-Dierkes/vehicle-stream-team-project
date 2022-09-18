@@ -1,4 +1,23 @@
-pytest
-mypy
+beautifulsoup4
+dash==2.4.0
+dash-core-components==2.0.0
+dash-bootstrap-components==1.2.0
+dash-html-components==2.0.0
+dash-labs==1.0.8
+dash-table==5.0.0
+Fiona
+GDAL
+geopandas
+GitPython
+json5
+jsonschema
+matplotlib
+matplotlib-inline
+numpy
 pandas
-mysql-connector-python
+plotly
+Rtree
+scipy
+Shapely
+vehicle-stream-pipeline @ file:///Users/ericchittka/Documents/GitHub/vehicle-stream-team-project
+. 
