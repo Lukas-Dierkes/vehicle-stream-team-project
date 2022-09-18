@@ -266,7 +266,28 @@ New artificially simulated rides can be generate with the function generateRideS
 - **month** = month for which rides are to be simulated
 - **year** = year for which rides are to be simulated
 
-In an initial step, the function creates an empty DataFrame ‘newRides’ with all needed columns. Then, all needed attributes of that DataFrame are incrementally filled for all n new rides through help functions (see following sections). As a result, we receive a DataFrame with n completed rides in the specified month of the specified year. 
+In an initial step, the function creates an empty DataFrame ‘newRides’ with all needed columns. Then, all needed attributes of that DataFrame are incrementally filled for all n new rides through help functions (see following sections). In the simulation process a few attributes are left empty because they have no additional value for our analyses or they are just not relevant or it is not possible to generate reasonable values. As a result, we receive a DataFrame with n completed rides in the specified month of the specified year. 
+
+Ignored attributes in the simulation:
+- price_operations
+- price_offer
+- price_payed
+- created_from_offer
+- updated_at
+- rating_puenktlichkeit
+- rating_sauberkeit
+- rating_fahrer
+- rating_find_modstop
+- rating_other_comments
+- cancellation_reason
+- cancellation_comment
+- bahn_card_number
+- year_card_type
+- year_card_number
+- canceled_at
+- rating_question_one
+- rating_question_two
+- And all newly added attributes in the MoD Excel exports since June 22
 
 ### 5.3.3. Help Functions 
 ***
