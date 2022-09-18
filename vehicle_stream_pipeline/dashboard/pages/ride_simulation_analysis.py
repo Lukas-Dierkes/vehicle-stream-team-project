@@ -249,7 +249,7 @@ def update_charts(
 
     # Sample as many rides as needed as calculated before.
     if needed_rides - len(rides_df) > 0:
-        simulated_rides_1 = simulated_rides.sample(int(needed_rides - len(rides_df)))
+        simulated_rides_1 = simulated_rides.sample(int(needed_rides - len(rides_df)), replace=True)
         total_rides = pd.concat([rides_df, simulated_rides_1])
     else:
         total_rides = rides_df.sample(int(needed_rides))
