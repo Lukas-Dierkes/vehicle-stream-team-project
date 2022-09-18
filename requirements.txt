@@ -18,4 +18,5 @@ plotly
 Rtree
 scipy
 Shapely
+openpyxl
 . 
