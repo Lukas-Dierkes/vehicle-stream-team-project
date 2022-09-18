@@ -1,3 +1,7 @@
+"""
+    This script contains all functions to conduct the entire ride simulation based on cleaned original data.
+"""
+
 import time
 import warnings
 from datetime import datetime as dt
@@ -68,192 +72,30 @@ def getdistribution(data, column, min=None, max=None):
     return stats.truncnorm((a - mean) / std, (b - mean) / std, loc=mean, scale=std)
 
 
-def generateRoute(oldRides, newRides, routes):
-    """This function selects a route (pickup_addres + dropoff_address) for every new ride based on the route distribution depending on the scheduled_to timestamp of the new ride.
+# general function that returns n random values based on the probability distribution of a certain column
+# used for the following ride attributes: number_of_passenger, free_ride, payment_type, arrival_indicator, rating
+def generateValues(column_name, df, newRides):
+    """This function generates a probability distribution for discrete values in a specified column in a DataFrame. Then, n random choices are made and returned in a list.
 
     Args:
-        oldRides (DataFrame): DataFrame containing all origianl past rides - basis for building probability distributions.
-        newRides (DataFrame): DataFrame containing an intermediate result within the process of ride simulation
-        routes (DataFrame): DataFrame containing all routes between all MoDStops
+        column_name (String): Name of the column for which a distribution is to be created and values are to be generated
+        df (DataFrame): Pandas DataFrame that contains the column for which a distribution is to be created
+        newRides (DataFrame): DataFrame containing an intermediate result within the process of ride simulation; the df length represents the amount of values to be generated.
 
     Returns:
-        DataFrame: Returns the following DataFrame columns ["pickup_address", "dropoff_address"] for the new rides.
+        List: n random choices from a generated probability distribution of discrete values.
     """
-
-    # add route identifier to routes dataframe
-    allRoutes = routes[
-        routes["Route [m]"] > 500
-    ]  # Assumption: real rides are at least 500 m long
-    allRoutes["route"] = (
-        allRoutes["start_id"].astype(str) + "-" + allRoutes["end_id"].astype(str)
+    dist = (
+        df[column_name]
+        .value_counts()
+        .rename_axis(column_name)
+        .reset_index(name="counts")
+    )
+    dist["probabilities"] = dist.counts / dist.counts.sum()
+    return np.random.choice(
+        dist[column_name], p=dist["probabilities"], size=newRides.shape[0]
     )
 
-    # based on analysis of rides we distinguish between workdays (Monday till Friday noon) and weekend (Friday noon till Sunday)
-    newRideStops = pd.DataFrame(
-        newRides[["created_at", "scheduled_to", "pickup_address", "dropoff_address"]],
-        columns=["created_at", "scheduled_to", "pickup_address", "dropoff_address"],
-    )
-    newRideStops["created_at"] = pd.to_datetime(newRideStops["created_at"])
-    newRideStops = newRideStops.sort_values(by=["created_at"])
-    newRideStops["route"] = ""
-    newRideStops["day"] = newRideStops["scheduled_to"].apply(lambda x: dt.weekday(x))
-    newRideStops["hour"] = newRideStops["scheduled_to"].apply(lambda x: x.hour)
-    newRideStops["workday"] = np.where(
-        (
-            newRideStops["day"].isin([0, 1, 2, 3, 4])  # 0 = Monday, 6 = Sunday
-            & ~((newRideStops["day"] == 4) & (newRideStops["hour"] > 13))
-        ),
-        True,
-        False,
-    )
-
-    oldRidestops = pd.DataFrame(
-        oldRides[["state", "scheduled_to", "pickup_address", "dropoff_address"]],
-        columns=["state", "scheduled_to", "pickup_address", "dropoff_address"],
-    )
-    oldRidestops["route"] = (
-        oldRidestops["pickup_address"].astype(str)
-        + "-"
-        + oldRidestops["dropoff_address"].astype(str)
-    )
-    oldRidestops["scheduled_to"] = pd.to_datetime(oldRidestops["scheduled_to"])
-    oldRidestops["day"] = oldRidestops["scheduled_to"].apply(lambda x: dt.weekday(x))
-    oldRidestops["hour"] = oldRidestops["scheduled_to"].apply(lambda x: x.hour)
-    oldRidestops["workday"] = np.where(
-        (
-            oldRidestops["day"].isin([0, 1, 2, 3, 4])  # 0 = Monday, 6 = Sunday
-            & ~((oldRidestops["day"] == 4) & (oldRidestops["hour"] > 13))
-        ),
-        True,
-        False,
-    )
-    workdayOldRides = oldRidestops[(oldRidestops["workday"] == True)]
-    weekendOldRides = oldRidestops[(oldRidestops["workday"] == False)]
-
-    # generate ridestops
-    for h in [0, 1] + list(range(7, 24)):  # rides start between 7:00 and 0:59
-        # timeframe used to get ridestop distribution
-        if h in [0, 1]:
-            timeframe = [23, 0, 1]
-        elif h == 23:
-            timeframe = [22, 23, 0]
-        elif h == 7:
-            timeframe = [7, 8, 9]
-        else:
-            timeframe = list(range(h - 1, h + 2))
-
-        ##### workday ridestop distribution #####
-        distWorkday = (
-            workdayOldRides[(workdayOldRides["hour"].isin(timeframe))]["route"]
-            .value_counts()
-            .rename_axis("route")
-            .reset_index(name="counts")
-        )
-        numberOfNoise = distWorkday["counts"].sum() / 80 * 20  # 20% noise / new routes
-        allRoutes["counts"] = distWorkday[
-            "counts"
-        ].min()  # noise is weighted similar to least frequent real driven route
-        # add randomly new routes to the distribution
-        distWorkday = pd.concat(
-            [
-                distWorkday,
-                allRoutes[~allRoutes["route"].isin(distWorkday["route"])].sample(
-                    frac=1
-                )[: int(numberOfNoise)][["route", "counts"]],
-            ]
-        )
-        distWorkday["probabilities"] = distWorkday.counts / distWorkday.counts.sum()
-        ##### weekend ridestop distribution #####
-        distWeekend = (
-            weekendOldRides[(weekendOldRides["hour"].isin(timeframe))]["route"]
-            .value_counts()
-            .rename_axis("route")
-            .reset_index(name="counts")
-        )
-        numberOfNoise = distWeekend["counts"].sum() / 80 * 20  # 20% noise / new routes
-        allRoutes["counts"] = distWeekend[
-            "counts"
-        ].min()  # noise is weighted similar to least frequent real driven route
-        # add randomly new routes to the distribution
-        distWeekend = pd.concat(
-            [
-                distWeekend,
-                allRoutes[~allRoutes["route"].isin(distWeekend["route"])].sample(
-                    frac=1
-                )[: int(numberOfNoise)][["route", "counts"]],
-            ]
-        )
-        distWeekend["probabilities"] = distWeekend.counts / distWeekend.counts.sum()
-
-        # split newRideStops dataframe in 1. ride-hour=h & weekend, 2. ride-hour=h & workday, 3. rest
-        newRideStops_h_wend = newRideStops[
-            (newRideStops["hour"] == h) & (newRideStops["workday"] == False)
-        ]
-        newRideStops_h_work = newRideStops[
-            (newRideStops["hour"] == h) & (newRideStops["workday"] == True)
-        ]
-        newRideStops_not_h = newRideStops[
-            ~((newRideStops["hour"] == h) & (newRideStops["workday"] == False))
-            & ~((newRideStops["hour"] == h) & (newRideStops["workday"] == True))
-        ]
-
-        # generate routes based on distributions
-        newRideStops_h_wend["route"] = np.random.choice(
-            distWeekend["route"],
-            p=distWeekend["probabilities"],
-            size=newRideStops_h_wend.shape[0],
-        )
-        newRideStops_h_work["route"] = np.random.choice(
-            distWorkday["route"],
-            p=distWorkday["probabilities"],
-            size=newRideStops_h_work.shape[0],
-        )
-
-        # concat 3 pieces back together
-        newRideStops = pd.concat(
-            [newRideStops_not_h, newRideStops_h_wend, newRideStops_h_work]
-        )
-    newRideStops = newRideStops.sort_values(by=["created_at"])
-
-    # Extract pickup & dropoff address from route column
-    newRideStops[["pickup_address", "dropoff_address"]] = newRideStops[
-        "route"
-    ].str.split("-", expand=True)
-    newRideStops["pickup_address"] = pd.to_numeric(newRideStops["pickup_address"])
-    newRideStops["dropoff_address"] = pd.to_numeric(newRideStops["dropoff_address"])
-
-    return newRideStops[["pickup_address", "dropoff_address"]]
-
-
-def generateRouteSpecs(newRides, routes):
-    """This function looks up the distance for all simulated routes. Afterwards, the shortest_ride time is calculated by assuming in average speed of 30km/h
-
-    Args:
-        newRides (DataFrame): DataFrame containing an intermediate result within the process of ride simulation
-        routes (DataFrame): DataFrame containing all routes between all MoDStops
-
-    Returns:
-        DataFrame: Returns the following DataFrame columns ["distance", "shortest_ridetime"] for the new rides.
-    """
-
-    # Extract 'distance' and 'shortest_ridetime' based on generated routes
-    routeSpecs = pd.DataFrame(
-        columns=["distance", "shortest_ridetime"],
-    )
-
-    routes["start_id"] = pd.to_numeric(routes["start_id"])
-    routes["end_id"] = pd.to_numeric(routes["end_id"])
-
-    routeSpecs["distance"] = newRides.merge(
-        routes,
-        left_on=["pickup_address", "dropoff_address"],
-        right_on=["start_id", "end_id"],
-        how="left",
-    )["Route [m]"]
-    routeSpecs["shortest_ridetime"] = round(
-        1 / (30 / (routeSpecs["distance"] / 1000)) * 60 * 60
-    )  # calculate shortest_ridetime in seconds with average speed of 30 km/h
-    return routeSpecs[["distance", "shortest_ridetime"]]
 
 # function that returns n random 'created_at' timestamps over a period of one specified month based on the probability distribution in original data
 # first step: choose a date from the month based on the probability distribution of rides over the weekdays (Monday-Sunday)
@@ -328,7 +170,7 @@ def generateCreatedAt(oldRides, newRides, m, y):
     dist_minute["probabilities"] = dist_minute.counts / dist_minute.counts.sum()
     dist_minute = dist_minute.sort_values("minute")
 
-    # match probability that a ride is on that weekday to all dates in the simulated month
+    # match probability that a ride is on a particular weekday to all dates in the simulated month that are on this particular weekday
     daydist["probabilities"] = daydist["weekday"].apply(
         lambda x: dist_day[dist_day["day"] == x]["probabilities"].values[0]
     )
@@ -348,12 +190,14 @@ def generateCreatedAt(oldRides, newRides, m, y):
     values["day"] = values["created_at"].apply(lambda x: dt.weekday(x))
     values["created_at"] = values["created_at"] + values["day"].apply(
         lambda x: pd.Timedelta(
+            # choose hour based on distribution of that weekday
             hours=np.random.choice(
                 dist_hour[x]["hour"], p=dist_hour[x]["probabilities"]
-            ),  # choose hour based on distribution of that weekday
+            ),
+            # choose minute based on distribution
             minutes=np.random.choice(
                 dist_minute["minute"], p=dist_minute["probabilities"]
-            ),  # choose minute based on distribution of that hour
+            ),
             # random choice of seconds
             seconds=np.random.choice(list(range(0, 60))),
         )
@@ -404,7 +248,7 @@ def generateScheduledTo(oldRides, newRides):
     # distribution of average prebook time
     left_border = (
         8 * 60
-    )  # min value of 8 min -> assumption: scheduled ride must be at least 8 min in the future
+    )  # min value of 8 min -> assumption: scheduled ride must be at least 8 min in the future bc. dispatching of a driver is 8 min. before scheduled_to
     dist_avg_prebook_time = getdistribution(
         scheduled[scheduled["isScheduled"] == True], "prebook_time", min=left_border
     )
@@ -412,7 +256,7 @@ def generateScheduledTo(oldRides, newRides):
     scheduledNew["scheduled_to"] = [
         (i + pd.Timedelta(dist_avg_prebook_time.rvs(1)[0], unit="seconds")).round(
             freq="10min"
-        )
+        )  # round the time of prebooked rides to full 10th minutes
         if np.random.choice(dist["isScheduled"], p=dist["probabilities"])
         else i
         for i, j in zip(scheduledNew.created_at, scheduledNew.hour)
@@ -498,6 +342,7 @@ def generateDispatchedAt(oldRides, newRides):
     scheduled["created_at"] = pd.to_datetime(scheduled["created_at"])
     scheduled["scheduled_to"] = pd.to_datetime(scheduled["scheduled_to"])
     scheduled["dispatched_at"] = np.where(
+        # if scheduled ride then dispatched_at = scheduled_to - 8 min.
         (scheduled["isScheduled"] == True),
         np.where(
             (
@@ -507,12 +352,13 @@ def generateDispatchedAt(oldRides, newRides):
             scheduled["scheduled_to"] - pd.Timedelta(minutes=8),
             scheduled["created_at"],
         ),
+        # otherwise use created_at/scheduled_to (is the same here)
         scheduled["scheduled_to"],
     )
     return scheduled["dispatched_at"]
 
 
-# function that returns n random timestamps for 'arriving_push', vehicle_arrived_at', 'pickup_arrival_time'
+# function that returns n random timestamps for vehicle_arrived_at', 'pickup_arrival_time'
 # first, generate 'vehicle_arrived_at'
 # for scheduled rides: scheduled_to + random scheduling deviation (based on probability distribution of scheduling_deviation=vehicle_arrived_at-scheduled_to in original data)
 # for immediatie rides: scheduled_to + random pickup_arrival_time (based on probability distribution of pickup_arrival_time in original data)
@@ -551,7 +397,6 @@ def generateArrival(oldRides, newRides):
     arrivalOld["created_at"] = pd.to_datetime(arrivalOld["created_at"])
     arrivalOld["scheduled_to"] = pd.to_datetime(arrivalOld["scheduled_to"])
     arrivalOld["vehicle_arrived_at"] = pd.to_datetime(arrivalOld["vehicle_arrived_at"])
-    # arrivalOld['arriving_push'] = pd.to_datetime(arrivalOld['arriving_push'])
 
     # create dataframe with needed attributes to determine 'vehicle_arrived_at'
     arrivalNew = pd.DataFrame(
@@ -606,9 +451,14 @@ def generateArrival(oldRides, newRides):
     arrivalNew["vehicle_arrived_at"] = np.where(
         arrivalNew["dispatched_at"] > arrivalNew["vehicle_arrived_at"],
         arrivalNew["dispatched_at"]
-        + (arrivalNew["scheduled_to"] - arrivalNew["dispatched_at"])
-        * np.random.uniform(0.1, 0.9),
+        + pd.to_timedelta(
+            (arrivalNew["scheduled_to"] - arrivalNew["dispatched_at"])
+            * np.random.uniform(0.1, 0.9)
+        ),
         arrivalNew["vehicle_arrived_at"],
+    )
+    arrivalNew["vehicle_arrived_at"] = arrivalNew["vehicle_arrived_at"].dt.ceil(
+        freq="s"
     )
 
     # calculate 'pickup_arrival_time'
@@ -797,7 +647,7 @@ def generatePickup(oldRides, newRides):
     # check that pickup_first_eta is after dispatched_at
     pickupNew["pickup_first_eta"] = np.where(
         pickupNew["dispatched_at"] > pickupNew["pickup_first_eta"],
-        pickupNew["dispatched_at"] + pd.Timedelta(minutes=3),  # TODO: mehr randomness?
+        pickupNew["dispatched_at"] + pd.Timedelta(minutes=3),
         pickupNew["pickup_first_eta"],
     )
 
@@ -835,6 +685,7 @@ def generatePickup(oldRides, newRides):
         * np.random.uniform(0.1, 0.9),
         pickupNew["arriving_push"],
     )
+    pickupNew["arriving_push"] = pickupNew["arriving_push"].dt.ceil(freq="s")
 
     return pickupNew[
         [
@@ -1016,6 +867,7 @@ def generateDropoff(oldRides, newRides, routes):
     dropoffNew["dropoff_at"] = dropoffNew["pickup_at"] + pd.to_timedelta(
         dropoffNew["ride_time"], unit="seconds"
     )
+    dropoffNew["dropoff_at"] = dropoffNew["dropoff_at"].dt.ceil(freq="s")
 
     # generate dropoff_first_eta
     dropoffNew["dropoff_first_eta"] = dropoffNew["pickup_first_eta"] + pd.to_timedelta(
@@ -1045,36 +897,199 @@ def generateDropoff(oldRides, newRides, routes):
     dropoffNew["dropoff_eta"] = np.where(
         (dropoffNew["pickup_eta"] > dropoffNew["dropoff_eta"])
         | (dropoffNew["pickup_at"] > dropoffNew["dropoff_eta"]),
-        dropoffNew["dropoff_at"] + pd.Timedelta(minutes=3),  # TODO: mehr randomness
+        dropoffNew["dropoff_at"] + pd.Timedelta(minutes=3),
         dropoffNew["dropoff_eta"],
     )
 
     return dropoffNew[["dropoff_at", "dropoff_eta", "dropoff_first_eta"]]
 
 
-# general function that returns n random values based on the probability distribution of a certain column
-# used for the following ride attributes: number_of_passenger, free_ride, payment_type, arrival_indicator, rating
-def generateValues(column_name, df, newRides):
-    """This function generates a probability distribution for discrete values in a specified column in a DataFrame. Then, n random choices are made and returned in a list.
+def generateRoute(oldRides, newRides, routes):
+    """This function selects a route (pickup_addres + dropoff_address) for every new ride based on the route distribution depending on the scheduled_to timestamp of the new ride.
 
     Args:
-        column_name (String): Name of the column for which a distribution is to be created and values are to be generated
-        df (DataFrame): Pandas DataFrame that contains the column for which a distribution is to be created
-        newRides (DataFrame): DataFrame containing an intermediate result within the process of ride simulation; the df length represents the amount of values to be generated.
+        oldRides (DataFrame): DataFrame containing all origianl past rides - basis for building probability distributions.
+        newRides (DataFrame): DataFrame containing an intermediate result within the process of ride simulation
+        routes (DataFrame): DataFrame containing all routes between all MoDStops
 
     Returns:
-        List: n random choices from a generated probability distribution of discrete values.
+        DataFrame: Returns the following DataFrame columns ["pickup_address", "dropoff_address"] for the new rides.
     """
-    dist = (
-        df[column_name]
-        .value_counts()
-        .rename_axis(column_name)
-        .reset_index(name="counts")
+
+    # add route identifier to routes dataframe
+    allRoutes = routes[
+        routes["Route [m]"] > 500
+    ]  # Assumption: real rides are at least 500 m long
+    allRoutes["route"] = (
+        allRoutes["start_id"].astype(str) + "-" + allRoutes["end_id"].astype(str)
     )
-    dist["probabilities"] = dist.counts / dist.counts.sum()
-    return np.random.choice(
-        dist[column_name], p=dist["probabilities"], size=newRides.shape[0]
+
+    # based on analysis of rides we distinguish between workdays (Monday till Friday noon) and weekend (Friday noon till Sunday)
+    newRideStops = pd.DataFrame(
+        newRides[["created_at", "scheduled_to", "pickup_address", "dropoff_address"]],
+        columns=["created_at", "scheduled_to", "pickup_address", "dropoff_address"],
     )
+    newRideStops["created_at"] = pd.to_datetime(newRideStops["created_at"])
+    newRideStops = newRideStops.sort_values(by=["created_at"])
+    newRideStops["route"] = ""
+    newRideStops["day"] = newRideStops["scheduled_to"].apply(lambda x: dt.weekday(x))
+    newRideStops["hour"] = newRideStops["scheduled_to"].apply(lambda x: x.hour)
+    newRideStops["workday"] = np.where(
+        (
+            newRideStops["day"].isin([0, 1, 2, 3, 4])  # 0 = Monday, 6 = Sunday
+            & ~((newRideStops["day"] == 4) & (newRideStops["hour"] > 13))
+        ),
+        True,
+        False,
+    )
+
+    oldRidestops = pd.DataFrame(
+        oldRides[["state", "scheduled_to", "pickup_address", "dropoff_address"]],
+        columns=["state", "scheduled_to", "pickup_address", "dropoff_address"],
+    )
+    oldRidestops["route"] = (
+        oldRidestops["pickup_address"].astype(str)
+        + "-"
+        + oldRidestops["dropoff_address"].astype(str)
+    )
+    oldRidestops["scheduled_to"] = pd.to_datetime(oldRidestops["scheduled_to"])
+    oldRidestops["day"] = oldRidestops["scheduled_to"].apply(lambda x: dt.weekday(x))
+    oldRidestops["hour"] = oldRidestops["scheduled_to"].apply(lambda x: x.hour)
+    oldRidestops["workday"] = np.where(
+        (
+            oldRidestops["day"].isin([0, 1, 2, 3, 4])  # 0 = Monday, 6 = Sunday
+            & ~((oldRidestops["day"] == 4) & (oldRidestops["hour"] > 13))
+        ),
+        True,
+        False,
+    )
+    workdayOldRides = oldRidestops[(oldRidestops["workday"] == True)]
+    weekendOldRides = oldRidestops[(oldRidestops["workday"] == False)]
+
+    # generate ridestops
+    for h in [0, 1] + list(range(7, 24)):  # rides start between 7:00 and 0:59
+        # timeframe used to get ridestop distribution
+        if h in [0, 1]:
+            timeframe = [23, 0, 1]
+        elif h == 23:
+            timeframe = [22, 23, 0]
+        elif h == 7:
+            timeframe = [7, 8, 9]
+        else:
+            timeframe = list(range(h - 1, h + 2))
+
+        ##### workday ridestop distribution #####
+        distWorkday = (
+            workdayOldRides[(workdayOldRides["hour"].isin(timeframe))]["route"]
+            .value_counts()
+            .rename_axis("route")
+            .reset_index(name="counts")
+        )
+        numberOfNoise = distWorkday["counts"].sum() / 80 * 20  # 20% noise / new routes
+        allRoutes["counts"] = distWorkday[
+            "counts"
+        ].min()  # noise is weighted similar to least frequent real driven route
+        # add randomly new routes to the distribution
+        distWorkday = pd.concat(
+            [
+                distWorkday,
+                allRoutes[~allRoutes["route"].isin(distWorkday["route"])].sample(
+                    frac=1
+                )[: int(numberOfNoise)][["route", "counts"]],
+            ]
+        )
+        distWorkday["probabilities"] = distWorkday.counts / distWorkday.counts.sum()
+        ##### weekend ridestop distribution #####
+        distWeekend = (
+            weekendOldRides[(weekendOldRides["hour"].isin(timeframe))]["route"]
+            .value_counts()
+            .rename_axis("route")
+            .reset_index(name="counts")
+        )
+        numberOfNoise = distWeekend["counts"].sum() / 80 * 20  # 20% noise / new routes
+        allRoutes["counts"] = distWeekend[
+            "counts"
+        ].min()  # noise is weighted similar to least frequent real driven route
+        # add randomly new routes to the distribution
+        distWeekend = pd.concat(
+            [
+                distWeekend,
+                allRoutes[~allRoutes["route"].isin(distWeekend["route"])].sample(
+                    frac=1
+                )[: int(numberOfNoise)][["route", "counts"]],
+            ]
+        )
+        distWeekend["probabilities"] = distWeekend.counts / distWeekend.counts.sum()
+
+        # split newRideStops dataframe in 1. ride-hour=h & weekend, 2. ride-hour=h & workday, 3. rest
+        newRideStops_h_wend = newRideStops[
+            (newRideStops["hour"] == h) & (newRideStops["workday"] == False)
+        ]
+        newRideStops_h_work = newRideStops[
+            (newRideStops["hour"] == h) & (newRideStops["workday"] == True)
+        ]
+        newRideStops_not_h = newRideStops[
+            ~((newRideStops["hour"] == h) & (newRideStops["workday"] == False))
+            & ~((newRideStops["hour"] == h) & (newRideStops["workday"] == True))
+        ]
+
+        # generate routes based on distributions
+        newRideStops_h_wend["route"] = np.random.choice(
+            distWeekend["route"],
+            p=distWeekend["probabilities"],
+            size=newRideStops_h_wend.shape[0],
+        )
+        newRideStops_h_work["route"] = np.random.choice(
+            distWorkday["route"],
+            p=distWorkday["probabilities"],
+            size=newRideStops_h_work.shape[0],
+        )
+
+        # concat 3 pieces back together
+        newRideStops = pd.concat(
+            [newRideStops_not_h, newRideStops_h_wend, newRideStops_h_work]
+        )
+    newRideStops = newRideStops.sort_values(by=["created_at"])
+
+    # Extract pickup & dropoff address from route column
+    newRideStops[["pickup_address", "dropoff_address"]] = newRideStops[
+        "route"
+    ].str.split("-", expand=True)
+    newRideStops["pickup_address"] = pd.to_numeric(newRideStops["pickup_address"])
+    newRideStops["dropoff_address"] = pd.to_numeric(newRideStops["dropoff_address"])
+
+    return newRideStops[["pickup_address", "dropoff_address"]]
+
+
+def generateRouteSpecs(newRides, routes):
+    """This function looks up the distance for all simulated routes. Afterwards, the shortest_ride time is calculated by assuming in average speed of 30km/h
+
+    Args:
+        newRides (DataFrame): DataFrame containing an intermediate result within the process of ride simulation
+        routes (DataFrame): DataFrame containing all routes between all MoDStops
+
+    Returns:
+        DataFrame: Returns the following DataFrame columns ["distance", "shortest_ridetime"] for the new rides.
+    """
+
+    # Extract 'distance' and 'shortest_ridetime' based on generated routes
+    routeSpecs = pd.DataFrame(
+        columns=["distance", "shortest_ridetime"],
+    )
+
+    routes["start_id"] = pd.to_numeric(routes["start_id"])
+    routes["end_id"] = pd.to_numeric(routes["end_id"])
+
+    routeSpecs["distance"] = newRides.merge(
+        routes,
+        left_on=["pickup_address", "dropoff_address"],
+        right_on=["start_id", "end_id"],
+        how="left",
+    )["Route [m]"]
+    routeSpecs["shortest_ridetime"] = round(
+        1 / (30 / (routeSpecs["distance"] / 1000)) * 60 * 60
+    )  # calculate shortest_ridetime in seconds with average speed of 30 km/h
+    return routeSpecs[["distance", "shortest_ridetime"]]
 
 
 # Attributes: ['arrival_deviation', 'waiting_time', 'boarding_time', 'ride_time', 'trip_time', 'delay', 'longer_route_factor']
