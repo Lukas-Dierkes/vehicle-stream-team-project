@@ -202,7 +202,7 @@ Based on the following table you can see an overview of the most important attri
     ```
     Based on the resulting data frame, we search for shared rides and add them in the "shared_rides" column. Next, empty columns are created for combined rides, which must be adjusted if more than 3 rides are combined. The quotes and rides without vehicle ID are omitted and the expressions correspond to the vehicle IDs and the different time scenarios. Finally, the function returns a dataframe containing shared rides.
 
-    **Note**: Since June the attributes in the Excel tables of MoD for the rides are different than before, the function has to be adapted. For this reason it is currently excluded in the code.
+    **Note:** Since June the attributes in the Excel tables of MoD for the rides are different than before, the function has to be adapted. For this reason it is currently excluded in the code.
     
  4. Data Check 
     
@@ -345,6 +345,42 @@ In an initial step, the function creates an empty DataFrame ‘newRides’ with 
 
 ## 5.4 Probablistic Graph Model 
 ***
+After simulating the rides, and to complement the data pipeline as a basis for deriving our use cases, we created a probablisitc model showing all the rides made so far between stops which you can find in the **prob_model.py** script. First of all we calculated the rides with the ***calculate_drives(df, start_date, end_date)*** function. That is, we aggregated all rides from our data that started at the same point and ended at the same point. Thus it calculates for each combination of spots the average ride time and and the average waiting time and stores it in a dataframe, which serves as basis for our graph.
+- Waiting time: The average number of days to wait for a ride to be made from one point to another
+- Ride time: The average ride time needed between two stops
+
+Based on the resulting dataframe we inserted the function ***calculate_graph(drives)*** for building the graph. Thus, the nodes in the graph represent the MoD stops and the edges between the nodes accordingly represent the rides so whether a ride has occurred between the two stops. For the weighting on the edges, we used the sum of the waiting time plus the average ride time.
+```
+def calculate_graph(drives):
+    G = nx.from_pandas_edgelist(
+        drives,
+        source="pickup_address",
+        target="dropoff_address",
+        edge_attr="avg_time_to_destination",
+        create_using=nx.DiGraph(),
+    )
+    return G
+```
+In the end, we used this calculated graph to find the shortest path between two points according to the weights via the ***get_shortest_ride(startpoint, endpoint, graph)*** function, using Dijkstra's algorithm. So, it returns a tuple which first item is a list containing all intermediate spots to get to the endpoint from the startpoint and the second item it the shortest time which is needed for that path.
+
+We then started with the HotSpot use case to find out which stops would be used the most considering the shortest paths. To do this, we applied the shortest path algorithm to all possible combinations of stops to obtain a list of the most frequently used HotSpots. Thus, we count how often a spot is an intermediate, starting or final spot in a all shortest paths.
+**Note:** In our dashboard stops_analysis the HotSpots are hardcoded because the calculation takes too long. But for future application purposes we included the function anyway. 
+
+We then continued our work with the drone flight use case to determine if, and more importantly, where drones could be used to reduce travel time. To this end, the ***add_drone_flights(df_edges, drives, drone_spots, radius)*** function is used where we are replacing our current rides with drone flights between stops that do not exceed a certain distance (e.g., 500 meters as the crow flies) between stops. Therefore, we filtered every route that has a radius larger than the specified one and assume that there is no waiting time for drones. The calculation of the drive time of the drones looks like this: 
+```
+    drone_flights = drone_flights[drone_flights["Luftlinie"] <= radius]
+
+    drone_flights["waiting_time"] = 0
+    drone_flights["number_of_drives"] = 1
+
+    drone_flights["avg_ride_time"] = (drone_flights.Luftlinie / 7) / 60 / 60 / 24
+    drone_flights["avg_time_to_destination"] = (
+        (drone_flights.Luftlinie / 7) / 60 / 60 / 24
+    )
+```
+Then we filter the routes that have either the drop off address or the pick up address at the drone spot, so we only allow drone flights from one drone spot to another spot within a radius or a drone flight from another spot within a 500m radius to the drone spot. The use of drone flights could reduce the minimum ride time between two MoD stops.
+
+The other functions in the **prob_model.py** script are important for the live dashboard and their visualization. 
 
 ## 5.5 Feasibilty Analysis 
 ***
@@ -375,4 +411,4 @@ The regression function used is an exponential decay function in the following f
 
 All these functions are used to plot the regression curve and state the required number of rides whithin the dashboard file *vehicle_stream_pipeline/dashboard/pages/ride_simulation.py* and the eda jupyter notebook *vehicle_stream_pipeline/eda_for_presentation.ipynb*.
 
-
+**HAVE FUN**
