@@ -969,7 +969,7 @@ def data_cleaning(df, df_stops):
 #def add_shared_rides(df, vehicle_usage_df, external_df):
     print("add shared rides")
 
-    # vehicle_usage_df preprocessing - filtering on Stop Point type and status + drop remaining duplicates
+    # vehicle_usage_df preprocessing - filteirng on Stop Point type and status + drop remaining duplicates
     merge_vehicle_df = vehicle_usage_df[
         (vehicle_usage_df["Stop Point Type"] == "dropoff")
         & (vehicle_usage_df["Stop Point status"] == "completed")
@@ -1000,7 +1000,7 @@ def data_cleaning(df, df_stops):
         vehicle_external_merge["External Id"].isin(df["id"])
     ]
 
-    # Left Join removed duplicates rides_df & filtered vehicle_external_merge
+    # Left Join removed duplicates rides_df & filterd vehicle_external_merge
     rides_vehicle_merge_df = df.merge(
         vehicle_external_merge, how="left", left_on="id", right_on="External Id"
     )
