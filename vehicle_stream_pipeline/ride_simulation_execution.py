@@ -47,5 +47,13 @@ for (year, month) in date_range:
     )
     new_rides_all = pd.concat([new_rides, new_rides_all])
 
+# check simulated rides for inconsistencies
+new_rides_all, new_rides_all_incorrect = dc.data_check(new_rides_all)
+if new_rides_all_incorrect.empty == False:
+    print("Inconsistencies found and saved in /data/simulated/")
+    new_rides_all_incorrect.to_excel(
+        f"{repo}/data/simulated/incorrect{int(time.time())}.xlsx"
+    )
+
 # save simulated rides as csv
 new_rides_all.to_csv(f"{repo}/data/simulated/ride_simulation.csv")
