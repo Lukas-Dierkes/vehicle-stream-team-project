@@ -1,3 +1,15 @@
+"""
+    This script calls the function getRegressionMetrics(), which samples rides for an increasing stepsize, transforms the data samples to a weighted directed graph and calculates the graph metrics diameter/longest shortest past and average shortest path for it.
+
+    Input files:
+        - ride_simulation.csv: simulated ride data
+        - MoDstops+Preismodell.xlsx: MoDStops table and all possible routes with distances
+
+    Output files:
+    - graph_metrics_test.csv: matrix with graph metrics considering all MoDStops as vertices in the graphs
+    - graph_metrics_main_routes_test: matrix with graph metrics considering only main MoDStops as vertices in the graphs
+"""
+
 import git
 import pandas as pd
 

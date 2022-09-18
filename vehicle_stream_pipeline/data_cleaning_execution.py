@@ -1,3 +1,17 @@
+"""
+    This script reads all required files and then automatically eliminates the duplicates, cleans the data, adds shared rides and checks if the data is correctly calculated and ordered. For the datapipeline we have made use of the descriptions and equations of MoD for the different attributes.
+    Input files:
+        - rides_combined.csv: all ride data combined in one csv file
+        - MoDstops+Preismodell.xlsx: MoDStops table and all possible routes with distances
+        - MoD_Vehicle Usage_2021+2022-05-15.xlsx: necessary to mach old rides (until May) with vehicle ID
+        - Autofleet_Rides with External ID_2021+2022-05-15.xlsx: necessary to mach old rides (until May) with vehicle ID
+
+    Output files:
+        - unmatched_addresses_{int(time.time())}.xlsx: this file lists all rides that contain a pickup_address or dropoff_address that can not be matched with the MoDStops list
+        - incorrect{int(time.time())}.xlsx: Excel file with incorrect ride data after cleaning (quality assurance)
+        - data_cleaned.csv: clean ride data that can be used for further analyses
+
+"""
 import time
 
 import git
