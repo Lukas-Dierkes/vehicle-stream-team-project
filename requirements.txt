@@ -19,5 +19,4 @@ plotly
 Rtree
 scipy
 Shapely
-vehicle-stream-pipeline @ file:///Users/ericchittka/Documents/GitHub/vehicle-stream-team-project
 . 
