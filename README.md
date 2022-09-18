@@ -113,35 +113,7 @@ The above resulting .csv files are saved in the folder *data/other*.
 ## 5.2 Data Pipeline  
 ***
 For starting the data pipeline you have to run the **vehicle_stream_pipeline/data_cleaning_execution.py** script, which reads all required files and then automatically eliminates the duplicates, cleans the data, adds shared rides and checks if the data is correctly calculated and ordered. For the datapipeline we have made use of the descriptions and equations of MoD for the different attributes. <br>
-Based on the following table you can see an overview of the most important attributes of the **rides_combined.csv**:
-| Attribute      | Description        |
-| ------------- | ------------- |
-| id | User id |
-| user_id | Ride id |
-| distance | Distance in meter |
-| pickup_address | Start address of the ride |
-| dropoff_address | End address of the ride |
-| state | State of the ride (offer/ offer-rejected/ completed/ rejeceted/ canceled) |
-| created_at | Creation date of the ride |
-| scheduled_to | Prebooking time |
-| dispatched_at | For offers that did not result in a booking, the time of origin of the offer is recorded here |
-| arriving_push | Is sent automatically by Autofleet if the FMS assumes that the vehicle will reach the pickup in <= 3 minutes. This sometimes leads to misjudgements by the FMS, which then informs the customer too early, which in unfavorable cases leads to unnecessarily long waiting times at the MoDstop. Furthermore, it can lead to getting arrival_push several times |
-| vehicle_arrived_at | Time when the driver arrives at the pickup_address and confirms this via button |
-| pickup_arrival_time | vehicle_arrived_at - dipsatched_at |
-| earliest_pickup_excepctation | dispatched_at + 3 min |
-| pickup_first_eta | Earliest possible time when the client must be ready to drive from the pickup_address. Minimum here is created_at + 3 min (setting in Autofleet) |
-| pickup_at | Actual pickup time |
-| dropoff_first_eta | Earliest possible time the customer will arrive at the dropoff_address. This corresponds to pickup_first_eta + shortest ride time |
-| dropoff_at | Actual dropoff time |
-| arrival_deviation | vehicle_arrived_at - (arriving_push + 3 min) |
-| waiting_time | vehicle_arrived_at - earliest_pickup_expectation |
-| boarding_time | pickup_at - vehicle_arrived_at |
-| ride_time | dropoff_at - pickup_at |
-| trip_time | waiting_time + ride_time |
-| shortest_ride_time | Fastest ride time between entry and exit |
-| delay | trip_time - shortest_ride_time |
-| shortest_ride_time | Fastest ride time between entry and exit |
-| longer_route_factor | ride_time/shortest_ride_time |
+Based on the following table you can see an overview of the attributes:
 
 **Required files:**
 - rides_combined.csv
@@ -180,56 +152,12 @@ Based on the following table you can see an overview of the most important attri
     | ***clean_time_periods(df)*** | After all timestamp attributes have been checked and filled, the time spans in between can be calculated using the MoD equations and entered into the respective columns |
     | ***clean_ratings(df)*** | Cleans the rating column |
 
-    So, as you can see, in general the incorrect or non-existent values are filled with the values of other times, using given calculations (see table in 5.2) or making certain assumptions.  
+    So, as you can see, in general the incorrect or non-existent values are filled with the values of other times, using the given calculation (see table in 5.2) or making certain assumptions.  
 
- 3. Add shared rides
+ 3. Data Check 
+    **Note:** 
 
-    After the data is cleaned the **data_cleaning_execution.py** calls the function ***add_shared_rides(df, vehicle_usage_df, external_df)***. So the function uses 3 dataframes as input:
-    1. *data/other/rides_combined.csv* 
-    2. *data/vehicle_data/MoD_Vehicle Usage_2021+2022-05-15.xlsx*
-    3. *data/vehicle_data/Autofleet_Rides with External ID_2021+2022-05-15.xlsx*
-
-    At the beginning, filtering is done by stop point and status and then the remaining duplicates are removed. Afterwards the external dataframe is preprocessed and only the IDs contained in the vehicle usage dataframe are kept. Consequently the filtered vehicle usage table is joined to the external dataframe using a left join. After preparing the resulting dataframe for the join with the rides_combined table, we perform a left join between the dataframes removing the duplicates (see code snippet).
-    ```
-    rides_vehicle_merge_df = df.merge(
-        vehicle_external_merge, how="left", left_on="id", right_on="External Id"
-    )
-    rides_vehicle_merge_df.drop(
-        columns=["External Id", "Ride_id_external", "Ride_id_vehicle_usage"],
-        inplace=True,
-    )
-    ```
-    Based on the resulting data frame, we search for shared rides and add them in the "shared_rides" column. Next, empty columns are created for combined rides, which must be adjusted if more than 3 rides are combined. The quotes and rides without vehicle ID are omitted and the expressions correspond to the vehicle IDs and the different time scenarios. Finally, the function returns a dataframe containing shared rides.
-
-    **Note**: Since from August the attributes in the Excel tables of MoD for the rides are different than before, the function has to be adapted. For this reason it is currently excluded in the code.
-
- 4. Data check  
-   
-    Lastly, the ***data_check(df)*** function was called. This function is used as a test for our cleaned data and to remove records that we have classified as outliers. First the correct ordering of each timestamp is tested, such as for created_at. 
-    ```
-    # filter wrong ordering: created_at
-    df_incorrect = df.loc[
-        (df.created_at > df.scheduled_to)
-        | (df.created_at > df.dispatched_at)
-        | (df.created_at > df.arriving_push)
-        | (df.created_at > df.vehicle_arrived_at)
-        | (df.created_at > df.earliest_pickup_expectation)
-        | (df.created_at > df.pickup_first_eta)
-        | (df.created_at > df.pickup_eta)
-        | (df.created_at > df.pickup_at)
-        | (df.created_at > df.dropoff_first_eta)
-        | (df.created_at > df.dropoff_eta)
-        | (df.created_at > df.dropoff_at)
-        | (df.created_at > df.updated_at)
-    ]
-    ```
-    After that it is tested if the times between the timestamps were calculated correctly.  
-    ```
-     # boarding_time
-    df_incorrect = df.loc[((df.pickup_at - df.vehicle_arrived_at).dt.seconds != df.boarding_time)]
-    ```
-    Finally, the largest outliers were filtered out so that the subsequent driving simulation is as close to everyday life as possible. It should be mentioned that these are not natural outliers, but those that were incorrectly calculated or entered by the system. Unfortunately, we could not handle every single case during the data cleaning process, because some of them are single data sets containing the error and if we would fix them, other factors have to be considered in other places, otherwise they would lead to errors again. 
-     
+    
 ## 5.3 Ride Simulation 
 ***
 **Required files:**
@@ -249,7 +177,7 @@ Next, the number of rides to be simulated per month is defined in line 39 within
 month_sim_rides = 5000  # CHANGE to Adjust monthly number of simualted rides
 new_rides_all = pd.DataFrame(columns=rides_df.columns)
 ```
-Finally, the script iterates over the months of the defined date range and simulates the defined number of rides per month. Therefore, the script calls the function ***generateRideSpecs()*** that returns a DataFrame with the simulated rides. In this function the cleaned ride data from MoD acts as the basis from which numerous probability distributions are derived to randomly choose attribute values from. In the end, the result is stored in the data folder *data/simulated*: 
+Finally, the script iterates over the months of the defined date range and simulates the defined number of rides per month. Therefore, the script calls the function ***generateRideSpecs()*** that returns a DataFrame with the simulated rides. In this function the cleaned ride data from MoD acts as the basis from which numerous probability distributions are derived to randomly choose attribute values from. Afterwards, the **data_check()** function out of the data cleaning utilities is called to ensure the correctness of the simulated rides. In the end, the result is stored in the data folder *data/simulated*: 
 ```
 # save simulated rides as csv
 new_rides_all.to_csv(f"{repo}/data/simulated/ride_simulation.csv")
@@ -325,8 +253,9 @@ In an initial step, the function creates an empty DataFrame ‘newRides’ with 
 
 3. **Route Characteristics**
 
-    The characteristics of the route (combination of pickup address and drop off address) must be simulated after the ‘scheduled_to’ timestamp and before the ‘dropoff_at’ timestamp because the scheduled time is needed to choose a route for a simulated ride and to calculate the drop off timestamp, we need to know the driven route. The route related attributes are the **‘pickup_address’**, **‘dropoff_address’**, **‘distance’** and **‘shortest_ridetime’**, which can be simulated with the function ***generateRoute(oldRides, newRides, ridestops, routes)***, where ‘ridestops’ is a DataFrame with all existing MoDStops. The first step is to randomly choose a route for all simulated rides based on a probability distribution over the routes in the original data. However, the choice of the route strongly depends on the time of a ride, i.e. the hour of the day as well as whether it is a workday or a weekend day. Consequently, for all new rides we need to filter the original rides first by the time. We allow here original rides in a timeframe of +/- 1 hour around the time of a simulated ride. However, we can not only base the route choice on the past because then we would never simulate routes that were never driven before. As a consequence, we assume that 20% out of the number of simulated rides should take place on randomly added new (never driven before) routes. Therefore, an even number of new routes is added to the probability distribution of the routes that are weighted similar as the least frequently driven route in the filtered original rides because we assume that this weighting represents the fraction of completely random routes. Afterwards, we can derive a probability distribution for a simulated ride and randomly choose a route.
-    After simulating the routes for all new rides, we can simply look up the ‘distance’ values in the DataFrame containing all existing MoDStops with their distances. Furthermore, we can now calculate the attribute ‘shortest_ridetime’ by assuming an average speed of 30km/h over the distance of the route (logic by MoD). 
+    The characteristics of the route (combination of pickup address and drop off address) must be simulated after the ‘scheduled_to’ timestamp and before the ‘dropoff_at’ timestamp because the scheduled time is needed to choose a route for a simulated ride and to calculate the drop off timestamp, we need to know the driven route. The route consists of the attributes **‘pickup_address’ and ‘dropoff_address’**, which can be simulated with the function ***generateRoute(oldRides, newRides, routes)***. The first step is to randomly choose a route for all simulated rides based on a probability distribution over the routes in the original data. However, the choice of the route strongly depends on the time of a ride, i.e. the hour of the day as well as whether it is a workday or a weekend day. Consequently, for all new rides we need to filter the original rides first by the time. We allow here original rides in a timeframe of +/- 1 hour around the time of a simulated ride. However, we can not only base the route choice on the past because then we would never simulate routes that were never driven before. As a consequence, we assume that 20% out of the number of simulated rides should take place on randomly added new (never driven before) routes. Therefore, an even number of new routes is added to the probability distribution of the routes that are weighted similar as the least frequently driven route in the filtered original rides because we assume that this weighting represents the fraction of completely random routes. Afterwards, we can derive a probability distribution for a simulated ride and randomly choose a route.
+    
+    After simulating the routes for all new rides, the function **generateRouteSpecs(newRides, routes)** simply looks up the **‘distance’** values in the DataFrame containing all existing routes between all MoDStops with their distances. Furthermore, we can now calculate the attribute **‘shortest_ridetime’** by assuming an average speed of 30km/h over the distance of the route (logic by MoD). 
 
 4. **Timespans and other KPI's**
     
@@ -352,8 +281,7 @@ For the Feasibility Analysis two steps are required:
 Execute the script **vehicle_stream_pipeline/metrics_for_regression_execution.py**.
 This script calls the function ***getRegressionMetrics()***, which samples rides for an increasing stepsize, transforms the data samples to a weighted directed graph and calculates the graph metrics for it. The Output is the following:
 
-| #_simulated_rides      | diameter_w/o_drones        | avg_w/o_drones      | diameter_with_drones        | avg_with_drones        |
-| ------------- | ------------- | ------------- | ------------- | ------------- |
+|#_simulated_rides|diameter_w/o_drones|avg_w/o_drones|diameter_with_drones|avg_with_drones|  
 |10000|...|...|...|...|  
 |25000|...|...|...|...| 
 |...|...|...|...|...| 
