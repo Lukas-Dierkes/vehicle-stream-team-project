@@ -135,7 +135,7 @@ Based on the following table you can see an overview of the attributes:
     | ------------- | ------------- |
     | ***check_format(df, col_type_dic)*** | Checks the right format of the columns from the DataFrame (time, numerical, timestamp) |
     | ***clean_ride_id(df)*** | Fills empty id's |
-    | ***clean_distance(df)*** | Cleans the distance where the pickup_address == dropoff_address |
+    | ***clean_distance(df)*** | Removes rides where the pickup_address == dropoff_address |
     | ***clean_addresses(df, df_stops)*** | Checks if the addresses match those of the MoD Stop table and exports a list with the addresses that do not match |
     | ***clean_created_at(df)*** | Converts created_at column to datetime format |
     | ***clean_scheduled_to(df)*** | Fills the NaN values with the created_at time and notes that scheduled_to occurs after created_at |
