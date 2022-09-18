@@ -64,9 +64,9 @@ def getDeliveryTimes(
     else:
         diameter = 0
 
-    if nx.is_weakly_connected(graph_without_drones):
+    if nx.is_weakly_connected(drives_with_drones):
         avg_with_drones = nx.average_shortest_path_length(
-            graph_without_drones, weight="avg_time_to_destination"
+            drives_with_drones, weight="avg_time_to_destination"
         )
 
     return [
