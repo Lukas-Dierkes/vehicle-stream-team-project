@@ -1,3 +1,15 @@
+"""
+    The script reads all required files and then automatically extracts the date range in the cleaned ride data, to execute the ride simulation for every given month.
+
+    Input files:
+        - data_cleaned.csv: clean ride data that can be used for further analyses
+        - MoDstops+Preismodell.xlsx: MoDStops table and all possible routes with distances
+
+    Output files:
+        - incorrect{int(time.time())}.xlsx: Excel file with incorrect simulated ride data (quality assurance)
+        - ride_simulation.csv: simulated ride data
+"""
+
 import math
 import warnings
 from datetime import datetime as dt
