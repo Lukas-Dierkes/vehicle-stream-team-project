@@ -371,4 +371,4 @@ The regression function used is an exponential decay function in the following f
 
 All these functions are used to plot the regression curve and state the required number of rides whithin the dashboard file *vehicle_stream_pipeline/dashboard/pages/ride_simulation.py* and the eda jupyter notebook *vehicle_stream_pipeline/eda_for_presentation.ipynb*.
 
-
+**HAVE FUN!**
